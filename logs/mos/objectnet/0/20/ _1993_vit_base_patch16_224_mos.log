@@ -1,0 +1,218 @@
+2024-01-27 23:28:16,076 [trainer.py] => config: ./exps/mos_obj.json
+2024-01-27 23:28:16,076 [trainer.py] => prefix:  
+2024-01-27 23:28:16,076 [trainer.py] => dataset: objectnet
+2024-01-27 23:28:16,076 [trainer.py] => memory_size: 0
+2024-01-27 23:28:16,076 [trainer.py] => memory_per_class: 0
+2024-01-27 23:28:16,076 [trainer.py] => fixed_memory: False
+2024-01-27 23:28:16,076 [trainer.py] => shuffle: True
+2024-01-27 23:28:16,076 [trainer.py] => init_cls: 20
+2024-01-27 23:28:16,076 [trainer.py] => increment: 20
+2024-01-27 23:28:16,076 [trainer.py] => model_name: mos
+2024-01-27 23:28:16,076 [trainer.py] => backbone_type: vit_base_patch16_224_mos
+2024-01-27 23:28:16,076 [trainer.py] => device: [device(type='cuda', index=3)]
+2024-01-27 23:28:16,076 [trainer.py] => seed: 1993
+2024-01-27 23:28:16,076 [trainer.py] => tuned_epoch: 10
+2024-01-27 23:28:16,076 [trainer.py] => init_lr: 0.05
+2024-01-27 23:28:16,076 [trainer.py] => batch_size: 48
+2024-01-27 23:28:16,076 [trainer.py] => weight_decay: 0.005
+2024-01-27 23:28:16,076 [trainer.py] => min_lr: 0
+2024-01-27 23:28:16,076 [trainer.py] => optimizer: sgd
+2024-01-27 23:28:16,076 [trainer.py] => scheduler: cosine
+2024-01-27 23:28:16,076 [trainer.py] => reinit_optimizer: True
+2024-01-27 23:28:16,076 [trainer.py] => init_milestones: [10]
+2024-01-27 23:28:16,076 [trainer.py] => init_lr_decay: 0.1
+2024-01-27 23:28:16,076 [trainer.py] => reg: 0.1
+2024-01-27 23:28:16,076 [trainer.py] => adapter_momentum: 0.1
+2024-01-27 23:28:16,077 [trainer.py] => ensemble: True
+2024-01-27 23:28:16,077 [trainer.py] => crct_epochs: 30
+2024-01-27 23:28:16,077 [trainer.py] => ca_lr: 0.005
+2024-01-27 23:28:16,077 [trainer.py] => ca_storage_efficient_method: covariance
+2024-01-27 23:28:16,077 [trainer.py] => ca_storage_efficient_method_choices: ['covariance', 'multi-centroid', 'variance']
+2024-01-27 23:28:16,077 [trainer.py] => n_centroids: 10
+2024-01-27 23:28:16,077 [trainer.py] => pretrained: True
+2024-01-27 23:28:16,077 [trainer.py] => drop: 0.0
+2024-01-27 23:28:16,077 [trainer.py] => drop_path: 0.0
+2024-01-27 23:28:16,077 [trainer.py] => ffn_num: 16
+2024-01-27 23:28:16,210 [data_manager.py] => [168, 136, 51, 9, 183, 101, 171, 99, 42, 159, 191, 70, 16, 188, 27, 10, 175, 26, 68, 187, 98, 6, 85, 35, 112, 43, 100, 0, 103, 181, 88, 59, 4, 2, 116, 174, 94, 80, 106, 1, 147, 17, 141, 131, 72, 23, 173, 54, 197, 118, 87, 32, 79, 104, 91, 19, 135, 107, 178, 36, 11, 199, 142, 8, 122, 3, 28, 57, 153, 172, 190, 56, 49, 44, 97, 62, 151, 169, 194, 55, 192, 12, 189, 78, 66, 180, 15, 137, 109, 134, 92, 119, 126, 52, 170, 40, 148, 65, 144, 64, 138, 45, 77, 89, 154, 90, 71, 193, 74, 30, 113, 143, 96, 84, 67, 50, 186, 156, 69, 21, 18, 111, 108, 58, 125, 157, 150, 110, 182, 129, 166, 83, 81, 60, 13, 165, 14, 176, 63, 117, 5, 22, 145, 121, 38, 41, 82, 127, 114, 20, 31, 53, 37, 163, 196, 130, 152, 162, 86, 76, 24, 34, 184, 149, 33, 128, 198, 155, 146, 167, 139, 120, 140, 102, 47, 25, 158, 123, 46, 164, 61, 7, 115, 75, 133, 160, 105, 132, 179, 124, 48, 73, 93, 39, 95, 195, 29, 177, 185, 161]
+2024-01-27 23:28:20,421 [mos.py] => 86,256,776 model total parameters.
+2024-01-27 23:28:20,422 [mos.py] => 458,120 model training parameters.
+2024-01-27 23:28:20,422 [mos.py] => head.weight: 153600
+2024-01-27 23:28:20,422 [mos.py] => head.bias: 200
+2024-01-27 23:28:20,422 [mos.py] => cur_adapter.0.down_proj.weight: 12288
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.0.down_proj.bias: 16
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.0.up_proj.weight: 12288
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.0.up_proj.bias: 768
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.1.down_proj.weight: 12288
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.1.down_proj.bias: 16
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.1.up_proj.weight: 12288
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.1.up_proj.bias: 768
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.2.down_proj.weight: 12288
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.2.down_proj.bias: 16
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.2.up_proj.weight: 12288
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.2.up_proj.bias: 768
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.3.down_proj.weight: 12288
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.3.down_proj.bias: 16
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.3.up_proj.weight: 12288
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.3.up_proj.bias: 768
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.4.down_proj.weight: 12288
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.4.down_proj.bias: 16
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.4.up_proj.weight: 12288
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.4.up_proj.bias: 768
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.5.down_proj.weight: 12288
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.5.down_proj.bias: 16
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.5.up_proj.weight: 12288
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.5.up_proj.bias: 768
+2024-01-27 23:28:20,423 [mos.py] => cur_adapter.6.down_proj.weight: 12288
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.6.down_proj.bias: 16
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.6.up_proj.weight: 12288
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.6.up_proj.bias: 768
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.7.down_proj.weight: 12288
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.7.down_proj.bias: 16
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.7.up_proj.weight: 12288
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.7.up_proj.bias: 768
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.8.down_proj.weight: 12288
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.8.down_proj.bias: 16
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.8.up_proj.weight: 12288
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.8.up_proj.bias: 768
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.9.down_proj.weight: 12288
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.9.down_proj.bias: 16
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.9.up_proj.weight: 12288
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.9.up_proj.bias: 768
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.10.down_proj.weight: 12288
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.10.down_proj.bias: 16
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.10.up_proj.weight: 12288
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.10.up_proj.bias: 768
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.11.down_proj.weight: 12288
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.11.down_proj.bias: 16
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.11.up_proj.weight: 12288
+2024-01-27 23:28:20,424 [mos.py] => cur_adapter.11.up_proj.bias: 768
+2024-01-27 23:28:20,425 [trainer.py] => All params: 86256776
+2024-01-27 23:28:20,426 [trainer.py] => Trainable params: 458120
+2024-01-27 23:28:20,427 [mos.py] => Learning on 0-20
+2024-01-27 23:35:46,796 [mos.py] => Task 0, Epoch 10/10 => Loss 0.685, Train_accy 80.23
+2024-01-27 23:42:24,144 [mos.py] => the accuracy of the original model:85.77
+2024-01-27 23:42:24,145 [trainer.py] => No NME accuracy.
+2024-01-27 23:42:24,145 [trainer.py] => CNN: {'total': 87.61, '00-19': 87.61, 'old': 0, 'new': 87.61}
+2024-01-27 23:42:24,145 [trainer.py] => CNN top1 curve: [87.61]
+2024-01-27 23:42:24,145 [trainer.py] => CNN top5 curve: [98.03]
+
+2024-01-27 23:42:24,145 [trainer.py] => Average Accuracy (CNN): 87.61 
+
+2024-01-27 23:42:24,146 [trainer.py] => All params: 86576457
+2024-01-27 23:42:24,147 [trainer.py] => Trainable params: 762440
+2024-01-27 23:42:24,149 [mos.py] => Learning on 20-40
+2024-01-27 23:49:14,477 [mos.py] => Task 1, Epoch 10/10 => Loss 0.816, Train_accy 79.15
+2024-01-27 23:54:30,176 [mos.py] => Task 1, Epoch 30/30 => Loss 0.058, CA_accy 98.97
+2024-01-27 23:55:41,626 [mos.py] => the accuracy of the original model:81.76
+2024-01-27 23:55:41,627 [trainer.py] => No NME accuracy.
+2024-01-27 23:55:41,627 [trainer.py] => CNN: {'total': 84.95, '00-19': 84.51, '20-39': 85.45, 'old': 84.51, 'new': 85.45}
+2024-01-27 23:55:41,627 [trainer.py] => CNN top1 curve: [87.61, 84.95]
+2024-01-27 23:55:41,627 [trainer.py] => CNN top5 curve: [98.03, 96.0]
+
+2024-01-27 23:55:41,627 [trainer.py] => Average Accuracy (CNN): 86.28 
+
+2024-01-27 23:55:41,629 [trainer.py] => All params: 86896137
+2024-01-27 23:55:41,630 [trainer.py] => Trainable params: 1066760
+2024-01-27 23:55:41,631 [mos.py] => Learning on 40-60
+2024-01-28 00:02:30,287 [mos.py] => Task 2, Epoch 10/10 => Loss 1.260, Train_accy 79.19
+2024-01-28 00:08:15,709 [mos.py] => Task 2, Epoch 30/30 => Loss 0.086, CA_accy 98.74
+2024-01-28 00:09:36,659 [mos.py] => the accuracy of the original model:77.19
+2024-01-28 00:09:36,660 [trainer.py] => No NME accuracy.
+2024-01-28 00:09:36,661 [trainer.py] => CNN: {'total': 81.18, '00-19': 82.11, '20-39': 80.91, '40-59': 80.41, 'old': 81.54, 'new': 80.41}
+2024-01-28 00:09:36,661 [trainer.py] => CNN top1 curve: [87.61, 84.95, 81.18]
+2024-01-28 00:09:36,661 [trainer.py] => CNN top5 curve: [98.03, 96.0, 95.31]
+
+2024-01-28 00:09:36,661 [trainer.py] => Average Accuracy (CNN): 84.58 
+
+2024-01-28 00:09:36,663 [trainer.py] => All params: 87215817
+2024-01-28 00:09:36,664 [trainer.py] => Trainable params: 1371080
+2024-01-28 00:09:36,666 [mos.py] => Learning on 60-80
+2024-01-28 00:16:26,524 [mos.py] => Task 3, Epoch 10/10 => Loss 1.159, Train_accy 76.36
+2024-01-28 00:22:07,815 [mos.py] => Task 3, Epoch 30/30 => Loss 0.116, CA_accy 98.43
+2024-01-28 00:23:38,401 [mos.py] => the accuracy of the original model:71.95
+2024-01-28 00:23:38,403 [trainer.py] => No NME accuracy.
+2024-01-28 00:23:38,403 [trainer.py] => CNN: {'total': 77.44, '00-19': 80.0, '20-39': 78.72, '40-59': 78.04, '60-79': 73.09, 'old': 78.96, 'new': 73.09}
+2024-01-28 00:23:38,403 [trainer.py] => CNN top1 curve: [87.61, 84.95, 81.18, 77.44]
+2024-01-28 00:23:38,403 [trainer.py] => CNN top5 curve: [98.03, 96.0, 95.31, 93.5]
+
+2024-01-28 00:23:38,403 [trainer.py] => Average Accuracy (CNN): 82.795 
+
+2024-01-28 00:23:38,404 [trainer.py] => All params: 87535497
+2024-01-28 00:23:38,406 [trainer.py] => Trainable params: 1675400
+2024-01-28 00:23:38,407 [mos.py] => Learning on 80-100
+2024-01-28 00:30:36,337 [mos.py] => Task 4, Epoch 10/10 => Loss 1.340, Train_accy 79.24
+2024-01-28 00:36:14,850 [mos.py] => Task 4, Epoch 30/30 => Loss 0.138, CA_accy 97.94
+2024-01-28 00:37:59,969 [mos.py] => the accuracy of the original model:70.58
+2024-01-28 00:37:59,977 [trainer.py] => No NME accuracy.
+2024-01-28 00:37:59,977 [trainer.py] => CNN: {'total': 75.17, '00-19': 77.32, '20-39': 76.84, '40-59': 75.2, '60-79': 70.36, '80-99': 76.39, 'old': 74.9, 'new': 76.39}
+2024-01-28 00:37:59,977 [trainer.py] => CNN top1 curve: [87.61, 84.95, 81.18, 77.44, 75.17]
+2024-01-28 00:37:59,978 [trainer.py] => CNN top5 curve: [98.03, 96.0, 95.31, 93.5, 92.54]
+
+2024-01-28 00:37:59,978 [trainer.py] => Average Accuracy (CNN): 81.27000000000001 
+
+2024-01-28 00:37:59,979 [trainer.py] => All params: 87855177
+2024-01-28 00:37:59,980 [trainer.py] => Trainable params: 1979720
+2024-01-28 00:37:59,981 [mos.py] => Learning on 100-120
+2024-01-28 00:45:06,275 [mos.py] => Task 5, Epoch 10/10 => Loss 1.379, Train_accy 78.38
+2024-01-28 00:50:55,577 [mos.py] => Task 5, Epoch 30/30 => Loss 0.165, CA_accy 97.59
+2024-01-28 00:52:55,047 [mos.py] => the accuracy of the original model:67.63
+2024-01-28 00:52:55,050 [trainer.py] => No NME accuracy.
+2024-01-28 00:52:55,050 [trainer.py] => CNN: {'total': 72.37, '00-19': 74.79, '20-39': 74.65, '40-59': 72.35, '60-79': 67.48, '80-99': 74.54, '100-119': 70.8, 'old': 72.69, 'new': 70.8}
+2024-01-28 00:52:55,051 [trainer.py] => CNN top1 curve: [87.61, 84.95, 81.18, 77.44, 75.17, 72.37]
+2024-01-28 00:52:55,051 [trainer.py] => CNN top5 curve: [98.03, 96.0, 95.31, 93.5, 92.54, 91.08]
+
+2024-01-28 00:52:55,051 [trainer.py] => Average Accuracy (CNN): 79.78666666666668 
+
+2024-01-28 00:52:55,052 [trainer.py] => All params: 88174857
+2024-01-28 00:52:55,053 [trainer.py] => Trainable params: 2284040
+2024-01-28 00:52:55,055 [mos.py] => Learning on 120-140
+2024-01-28 00:59:45,444 [mos.py] => Task 6, Epoch 10/10 => Loss 1.299, Train_accy 78.64
+2024-01-28 01:05:23,327 [mos.py] => Task 6, Epoch 30/30 => Loss 0.200, CA_accy 96.91
+2024-01-28 01:07:27,691 [mos.py] => the accuracy of the original model:65.36
+2024-01-28 01:07:27,695 [trainer.py] => No NME accuracy.
+2024-01-28 01:07:27,695 [trainer.py] => CNN: {'total': 70.86, '00-19': 72.68, '20-39': 73.55, '40-59': 71.72, '60-79': 67.34, '80-99': 71.67, '100-119': 69.03, '120-139': 70.38, 'old': 70.95, 'new': 70.38}
+2024-01-28 01:07:27,695 [trainer.py] => CNN top1 curve: [87.61, 84.95, 81.18, 77.44, 75.17, 72.37, 70.86]
+2024-01-28 01:07:27,695 [trainer.py] => CNN top5 curve: [98.03, 96.0, 95.31, 93.5, 92.54, 91.08, 89.96]
+
+2024-01-28 01:07:27,695 [trainer.py] => Average Accuracy (CNN): 78.51142857142858 
+
+2024-01-28 01:07:27,697 [trainer.py] => All params: 88494537
+2024-01-28 01:07:27,698 [trainer.py] => Trainable params: 2588360
+2024-01-28 01:07:27,700 [mos.py] => Learning on 140-160
+2024-01-28 01:14:56,594 [mos.py] => Task 7, Epoch 10/10 => Loss 1.368, Train_accy 77.63
+2024-01-28 01:20:54,101 [mos.py] => Task 7, Epoch 30/30 => Loss 0.241, CA_accy 96.17
+2024-01-28 01:23:14,295 [mos.py] => the accuracy of the original model:63.24
+2024-01-28 01:23:14,298 [trainer.py] => No NME accuracy.
+2024-01-28 01:23:14,298 [trainer.py] => CNN: {'total': 68.64, '00-19': 71.83, '20-39': 72.61, '40-59': 69.35, '60-79': 65.04, '80-99': 71.16, '100-119': 67.26, '120-139': 67.97, '140-159': 64.76, 'old': 69.26, 'new': 64.76}
+2024-01-28 01:23:14,298 [trainer.py] => CNN top1 curve: [87.61, 84.95, 81.18, 77.44, 75.17, 72.37, 70.86, 68.64]
+2024-01-28 01:23:14,298 [trainer.py] => CNN top5 curve: [98.03, 96.0, 95.31, 93.5, 92.54, 91.08, 89.96, 88.43]
+
+2024-01-28 01:23:14,298 [trainer.py] => Average Accuracy (CNN): 77.2775 
+
+2024-01-28 01:23:14,300 [trainer.py] => All params: 88814217
+2024-01-28 01:23:14,302 [trainer.py] => Trainable params: 2892680
+2024-01-28 01:23:14,304 [mos.py] => Learning on 160-180
+2024-01-28 01:30:06,311 [mos.py] => Task 8, Epoch 10/10 => Loss 1.394, Train_accy 75.58
+2024-01-28 01:35:36,815 [mos.py] => Task 8, Epoch 30/30 => Loss 0.275, CA_accy 95.34
+2024-01-28 01:38:04,832 [mos.py] => the accuracy of the original model:61.75
+2024-01-28 01:38:04,842 [trainer.py] => No NME accuracy.
+2024-01-28 01:38:04,842 [trainer.py] => CNN: {'total': 66.87, '00-19': 70.56, '20-39': 70.89, '40-59': 68.09, '60-79': 64.6, '80-99': 68.97, '100-119': 66.67, '120-139': 67.52, '140-159': 63.95, '160-179': 60.89, 'old': 67.58, 'new': 60.89}
+2024-01-28 01:38:04,842 [trainer.py] => CNN top1 curve: [87.61, 84.95, 81.18, 77.44, 75.17, 72.37, 70.86, 68.64, 66.87]
+2024-01-28 01:38:04,842 [trainer.py] => CNN top5 curve: [98.03, 96.0, 95.31, 93.5, 92.54, 91.08, 89.96, 88.43, 87.1]
+
+2024-01-28 01:38:04,842 [trainer.py] => Average Accuracy (CNN): 76.12111111111112 
+
+2024-01-28 01:38:04,845 [trainer.py] => All params: 89133897
+2024-01-28 01:38:04,847 [trainer.py] => Trainable params: 3197000
+2024-01-28 01:38:04,849 [mos.py] => Learning on 180-200
+2024-01-28 01:45:14,329 [mos.py] => Task 9, Epoch 10/10 => Loss 1.502, Train_accy 76.53
+2024-01-28 01:51:11,125 [mos.py] => Task 9, Epoch 30/30 => Loss 0.309, CA_accy 94.81
+2024-01-28 01:53:51,658 [mos.py] => the accuracy of the original model:59.78
+2024-01-28 01:53:51,662 [trainer.py] => No NME accuracy.
+2024-01-28 01:53:51,665 [trainer.py] => CNN: {'total': 65.15, '00-19': 69.58, '20-39': 69.8, '40-59': 67.93, '60-79': 63.45, '80-99': 68.47, '100-119': 64.6, '120-139': 66.02, '140-159': 62.31, '160-179': 58.19, '180-199': 61.44, 'old': 65.55, 'new': 61.44}
+2024-01-28 01:53:51,665 [trainer.py] => CNN top1 curve: [87.61, 84.95, 81.18, 77.44, 75.17, 72.37, 70.86, 68.64, 66.87, 65.15]
+2024-01-28 01:53:51,665 [trainer.py] => CNN top5 curve: [98.03, 96.0, 95.31, 93.5, 92.54, 91.08, 89.96, 88.43, 87.1, 85.97]
+
+2024-01-28 01:53:51,665 [trainer.py] => Average Accuracy (CNN): 75.024 
+
+2024-01-28 01:53:51,667 [trainer.py] => Forgetting (CNN): 8.825555555555557
