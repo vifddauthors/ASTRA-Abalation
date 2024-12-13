@@ -18,7 +18,6 @@
 
 </div>
 </div>
-http://arxiv.org/abs/2412.09441
 <p align="center">
   <a href=""><img src="https://img.shields.io/badge/MOS-v1.0-darkcyan"></a>
   <a href='https://arxiv.org/abs/2412.09441'><img src='https://img.shields.io/badge/Arxiv-2412.09441-b31b1b.svg?logo=arXiv'></a>
