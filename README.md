@@ -5,8 +5,8 @@
 <div>
   <a href='http://www.lamda.nju.edu.cn/sunhl' target='_blank'>Hai-Long Sun</a><sup>1,2</sup>&emsp;
     <a href='http://www.lamda.nju.edu.cn/zhoudw' target='_blank'>Da-Wei Zhou</a><sup>1,2</sup>&emsp;
-    Hanbin Zhao<sup>3</sup>&emsp;
-    Le Gan<sup>1,2</sup>&emsp;
+    <a href='https://scholar.google.com/citations?user=F2kiw10AAAAJ&hl=en' target='_blank'>Hanbin Zhao</a><sup>3</sup>&emsp;
+    <a href='https://scholar.google.com/citations?user=cCD5SDoAAAAJ&hl=en' target='_blank'>Le Gan</a><sup>1,2</sup>&emsp;
     <a href='http://www.lamda.nju.edu.cn/zhandc' target='_blank'>De-Chuan Zhan</a><sup>1,2</sup>&emsp;
     <a href='http://www.lamda.nju.edu.cn/yehj' target='_blank'>Han-Jia Ye</a><sup>1,2</sup>&emsp;
 </div>
