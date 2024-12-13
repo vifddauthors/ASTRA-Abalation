@@ -18,23 +18,22 @@
 
 </div>
 </div>
-
+http://arxiv.org/abs/2412.09441
 <p align="center">
   <a href=""><img src="https://img.shields.io/badge/MOS-v1.0-darkcyan"></a>
-  <a href='https://arxiv.org/abs/xxxx'><img src='https://img.shields.io/badge/Arxiv-xxx.xxx-b31b1b.svg?logo=arXiv'></a>
+  <a href='https://arxiv.org/abs/2412.09441'><img src='https://img.shields.io/badge/Arxiv-2412.09441-b31b1b.svg?logo=arXiv'></a>
   <a href=""><img src="https://img.shields.io/github/stars/sun-hailong/AAAI25-MOS?color=4fb5ee"></a>
   <a href=""><img src="https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fsun-hailong%2FAAAI25-MOS&count_bg=%23FFA500&title_bg=%23555555&icon=&icon_color=%23E7E7E7&title=visitors&edge_flat=false"></a>
 </p>
 
-🎉The code repository for "[MOS: Model Surgery for Pre-Trained Model-Based Class-Incremental Learning](https://arxiv.org/abs/xxxx)" (AAAI 2025) in PyTorch. If you use any content of this repo for your work, please cite the following bib entry:
+🎉The code repository for "[MOS: Model Surgery for Pre-Trained Model-Based Class-Incremental Learning](http://arxiv.org/abs/2412.09441)" (AAAI 2025) in PyTorch. If you use any content of this repo for your work, please cite the following bib entry:
 
 ```
-  @inproceedings{xxx,
+  @inproceedings{sun2024mos,
     title={MOS: Model Surgery for Pre-Trained Model-Based Class-Incremental Learning},
-    author={xxx},
-    booktitle={xxx},
-    pages={xxx},
-    year={2024}
+    author={Sun, Hai-Long and Zhou, Da-Wei and Zhao, Hanbin and Gan, Le and Zhan, De-Chuan and Ye, Han-Jia},
+    booktitle={AAAI},
+    year={2025}
   }
 ```
 
