@@ -23,7 +23,7 @@ class Learner(BaseLearner):
         self.cls_mean = dict()
         self.cls_cov = dict()
         self.cls2task = dict()
-
+        self.confidence_threshold=args["refinement_stopping"]
         self.batch_size = args["batch_size"]
         self.init_lr = args["init_lr"]
         self.ca_lr = args["ca_lr"]
