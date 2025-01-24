@@ -483,20 +483,21 @@ class Learner(BaseLearner):
     
     # --- New Helper Methods ---
     
-    # Adaptive ensemble logits refinement using confidence-based dynamic weighting
-    def adaptive_ensemble_logits(self, orig_logits, final_logits, task_idx):
-        # Compute entropy as confidence measure
-        entropy = torch.nn.functional.softmax(final_logits, dim=1)
-        entropy = -torch.sum(entropy * torch.log(entropy + 1e-8), dim=1)  # Negative log likelihood for entropy
+    def adaptive_ensemble_logits(self, orig_logits, final_logits, orig_idx):
+        # Ensure orig_logits and final_logits have the same batch size
+        if orig_logits.shape[0] != final_logits.shape[0]:
+            # Align the batch size, assuming you want to replicate the logits
+            final_logits = final_logits.unsqueeze(0).expand_as(orig_logits)
+        
+        # Compute task confidence or use your logic here
+        task_confidence = self.compute_task_confidence(orig_idx)
     
-        # Normalize entropy to get the weight (higher entropy means more uncertainty, lower weight)
-        task_confidence = torch.exp(-entropy)
-        task_confidence = task_confidence / task_confidence.sum()  # Normalize to get weights
-    
-        # Dynamically weight the logits from the original and self-refined model based on confidence
+        # Calculate the ensemble logits
         ensemble_logits = (final_logits * task_confidence) + (orig_logits * (1 - task_confidence))
+    
         return ensemble_logits
     
+        
     # Scale task logits dynamically based on task performance
     def scale_task_logits(self, logits, task_idx):
         # Scaling based on the task index (newer tasks get higher scaling)
