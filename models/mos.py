@@ -424,6 +424,7 @@ class Learner(BaseLearner):
     
         for _, (_, inputs, targets) in enumerate(loader):
             inputs = inputs.to(self._device)
+            targets = targets.to(self._device)  # Ensure targets are on the same device
             with torch.no_grad():
                 # Original logits and predictions
                 orig_logits = self._network.forward_orig(inputs)["logits"][:, :self._total_classes]
@@ -439,12 +440,11 @@ class Learner(BaseLearner):
                     t_features = self._network.backbone(inputs, adapter_id=t_id, train=False)["features"]
                     all_features[:, t_id, :] = t_features
                 
-                # **Feature Refinement with Weighted Aggregation** (Improvement 3 + 6)
-                # Compute attention weights for all features (based on L2 norm or a learned metric)
-                feature_weights = torch.softmax(torch.norm(all_features, dim=2), dim=1)  # Shape: [batch_size, num_adapters]
-                refined_features = torch.sum(all_features * feature_weights.unsqueeze(2), dim=1)  # Weighted sum of features
+                # **Feature Refinement with Weighted Aggregation**
+                feature_weights = torch.softmax(torch.norm(all_features, dim=2), dim=1)
+                refined_features = torch.sum(all_features * feature_weights.unsqueeze(2), dim=1)
                 
-                # Self-refinement loop with **Dynamic Stopping Criteria** (Improvement 1)
+                # Self-refinement loop
                 final_logits = []
                 for x_id in range(len(inputs)):
                     loop_num = 0
@@ -453,13 +453,12 @@ class Learner(BaseLearner):
                     
                     while loop_num < MAX_ITER:
                         loop_num += 1
-                        cur_feature = refined_features[x_id].unsqueeze(0)  # Shape: [1, feature_dim]
+                        cur_feature = refined_features[x_id].unsqueeze(0)
                         cur_logits = self._network.backbone(cur_feature, fc_only=True)["logits"][:, :self._total_classes]
                         cur_pred = torch.max(cur_logits, dim=1)[1].cpu().numpy()
-                        cur_confidence = F.softmax(cur_logits, dim=1).max().item()  # Confidence of the prediction
+                        cur_confidence = F.softmax(cur_logits, dim=1).max().item()
                         cur_adapter_idx = torch.tensor([self.cls2task[v] for v in cur_pred], device=self._device)[0]
                         
-                        # Stopping criteria
                         if cur_adapter_idx == prev_adapter_idx or cur_confidence > CONFIDENCE_THRESHOLD:
                             break
                         prev_adapter_idx = cur_adapter_idx
@@ -467,22 +466,37 @@ class Learner(BaseLearner):
                     final_logits.append(cur_logits)
                 final_logits = torch.cat(final_logits, dim=0).to(self._device)
     
-                # **Ensemble Integration** (Improvement 2)
+                # Ensemble Integration
                 if self.ensemble:
                     final_logits = F.softmax(final_logits, dim=1)
                     orig_logits = F.softmax(orig_logits / (1 / (self._cur_task + 1)), dim=1)
-                    outputs = final_logits + orig_logits  # Weighted sum of logits
+                    outputs = final_logits + orig_logits
                 else:
                     outputs = final_logits
     
                 # Store predictions for accuracy evaluation
                 y_pred.extend(torch.max(outputs, dim=1)[1].cpu().numpy())
-                y_true.extend(targets.numpy())
+                y_true.extend(targets.cpu().numpy())  # Ensure targets are converted to numpy arrays
+    
+        # Ensure predictions and labels are not empty
+        if len(orig_y_pred) == 0 or len(y_true) == 0:
+            logging.error("No predictions or labels were generated during evaluation.")
+            return [], []  # Return empty results to avoid crashing
+    
+        # Flatten the lists of predictions
+        orig_y_pred_flat = np.concatenate(orig_y_pred) if len(orig_y_pred) > 0 else []
+        y_true_flat = np.concatenate(y_true) if len(y_true) > 0 else []
+    
+        # Handle empty arrays gracefully
+        if len(orig_y_pred_flat) == 0 or len(y_true_flat) == 0:
+            logging.error("Empty predictions or ground truth after concatenation.")
+            return [], []
     
         # Calculate and log the accuracy of the original model
-        orig_acc = (np.concatenate(orig_y_pred) == np.concatenate(y_true)).sum() * 100 / len(np.concatenate(y_true))
+        orig_acc = (orig_y_pred_flat == y_true_flat).sum() * 100 / len(y_true_flat)
         logging.info("The accuracy of the original model: {}".format(np.around(orig_acc, 2)))
     
         # Return predictions and ground truth
-        return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
+        return np.array(y_pred), np.array(y_true_flat)
+
 
