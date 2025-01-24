@@ -418,61 +418,58 @@ class Learner(BaseLearner):
         self._network.eval()
         y_pred, y_true = [], []
         orig_y_pred = []
-    
-        CONFIDENCE_THRESHOLD = 0.95  # For dynamic stopping criteria
-        MAX_ITER = 4  # Maximum iterations for self-refinement
-    
         for _, (_, inputs, targets) in enumerate(loader):
             inputs = inputs.to(self._device)
-            targets = targets.to(self._device)  # Ensure targets are on the same device
             with torch.no_grad():
-                # Original logits and predictions
                 orig_logits = self._network.forward_orig(inputs)["logits"][:, :self._total_classes]
                 orig_preds = torch.max(orig_logits, dim=1)[1].cpu().numpy()
                 orig_idx = torch.tensor([self.cls2task[v] for v in orig_preds], device=self._device)
                 
-                # Track original predictions for analysis
+                # Test the accuracy of the original model
                 orig_y_pred.append(orig_preds)
                 
-                # Feature extraction for all adapters
                 all_features = torch.zeros(len(inputs), self._cur_task + 1, self._network.backbone.out_dim, device=self._device)
                 for t_id in range(self._cur_task + 1):
                     t_features = self._network.backbone(inputs, adapter_id=t_id, train=False)["features"]
                     all_features[:, t_id, :] = t_features
                 
-                # **Feature Refinement with Weighted Aggregation**
-                feature_weights = torch.softmax(torch.norm(all_features, dim=2), dim=1)
-                refined_features = torch.sum(all_features * feature_weights.unsqueeze(2), dim=1)
-                
-                # Self-refinement loop
+                # Self-refined predictions
                 final_logits = []
+                MAX_ITER = 4
                 for x_id in range(len(inputs)):
                     loop_num = 0
                     prev_adapter_idx = orig_idx[x_id]
-                    cur_confidence = 0.0
-                    
-                    while loop_num < MAX_ITER:
+                    cur_logits = None
+    
+                    while True:
                         loop_num += 1
-                        cur_feature = refined_features[x_id].unsqueeze(0)
+                        cur_feature = all_features[x_id, prev_adapter_idx].unsqueeze(0)  # shape=[1, 768]
                         cur_logits = self._network.backbone(cur_feature, fc_only=True)["logits"][:, :self._total_classes]
+                        
+                        # Incorporate original logits dynamically
+                        if self.ensemble:
+                            orig_weight = 0.5  # Weight for original logits
+                            cur_logits = F.softmax(cur_logits, dim=1) * (1 - orig_weight) + F.softmax(orig_logits[x_id].unsqueeze(0), dim=1) * orig_weight
+                        
                         cur_pred = torch.max(cur_logits, dim=1)[1].cpu().numpy()
-                        cur_confidence = F.softmax(cur_logits, dim=1).max().item()
                         cur_adapter_idx = torch.tensor([self.cls2task[v] for v in cur_pred], device=self._device)[0]
                         
-                        if cur_adapter_idx == prev_adapter_idx or cur_confidence > CONFIDENCE_THRESHOLD:
+                        if loop_num >= MAX_ITER or cur_adapter_idx == prev_adapter_idx:
                             break
-                        prev_adapter_idx = cur_adapter_idx
+                        else:
+                            prev_adapter_idx = cur_adapter_idx
                     
                     final_logits.append(cur_logits)
                 final_logits = torch.cat(final_logits, dim=0).to(self._device)
     
-                # Ensemble Integration
                 if self.ensemble:
+                    # Final ensemble of original and refined logits
                     final_logits = F.softmax(final_logits, dim=1)
                     orig_logits = F.softmax(orig_logits / (1 / (self._cur_task + 1)), dim=1)
                     outputs = final_logits + orig_logits
                 else:
                     outputs = final_logits
+
     
                 # Store predictions for accuracy evaluation
                 y_pred.extend(torch.max(outputs, dim=1)[1].cpu().numpy())
