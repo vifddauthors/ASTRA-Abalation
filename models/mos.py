@@ -354,174 +354,174 @@ class Learner(BaseLearner):
             return self.args["reg"] * loss
             # return 0.0
     
-    # def _eval_cnn(self, loader):
-    #     self._network.eval()
-    #     y_pred, y_true = [], []
-    #     orig_y_pred = []
-    #     for _, (_, inputs, targets) in enumerate(loader):
-    #         inputs = inputs.to(self._device)
-    #         with torch.no_grad():
-    #             orig_logits = self._network.forward_orig(inputs)["logits"][:, :self._total_classes]
-    #             orig_preds = torch.max(orig_logits, dim=1)[1].cpu().numpy()
-    #             orig_idx = torch.tensor([self.cls2task[v] for v in orig_preds], device=self._device)
-                
-    #             # test the accuracy of the original model
-    #             orig_y_pred.append(orig_preds)
-                
-    #             all_features = torch.zeros(len(inputs), self._cur_task + 1, self._network.backbone.out_dim, device=self._device)
-    #             for t_id in range(self._cur_task + 1):
-    #                 t_features = self._network.backbone(inputs, adapter_id=t_id, train=False)["features"]
-    #                 all_features[:, t_id, :] = t_features
-                
-    #             # self-refined
-    #             final_logits = []
-                
-    #             MAX_ITER = 4
-    #             for x_id in range(len(inputs)):
-    #                 loop_num = 0
-    #                 prev_adapter_idx = orig_idx[x_id]
-    #                 while True:
-    #                     loop_num += 1
-    #                     cur_feature = all_features[x_id, prev_adapter_idx].unsqueeze(0) # shape=[1, 768]
-    #                     cur_logits = self._network.backbone(cur_feature, fc_only=True)["logits"][:, :self._total_classes]
-    #                     cur_pred = torch.max(cur_logits, dim=1)[1].cpu().numpy()
-    #                     cur_adapter_idx = torch.tensor([self.cls2task[v] for v in cur_pred], device=self._device)[0]
-                        
-    #                     if loop_num >= MAX_ITER or cur_adapter_idx == prev_adapter_idx:
-    #                         break
-    #                     else:
-    #                         prev_adapter_idx = cur_adapter_idx
-                        
-    #                 final_logits.append(cur_logits)
-    #             final_logits = torch.cat(final_logits, dim=0).to(self._device)
-
-    #             if self.ensemble:
-    #                 final_logits = F.softmax(final_logits, dim=1)
-    #                 orig_logits = F.softmax(orig_logits / (1/(self._cur_task+1)), dim=1)
-    #                 outputs = final_logits + orig_logits
-    #             else:
-    #                 outputs = final_logits
-                
-    #         predicts = torch.topk(
-    #             outputs, k=self.topk, dim=1, largest=True, sorted=True
-    #         )[
-    #             1
-    #         ]  # [bs, topk]
-    #         y_pred.append(predicts.cpu().numpy())
-    #         y_true.append(targets.cpu().numpy())
-
-    #     orig_acc = (np.concatenate(orig_y_pred) == np.concatenate(y_true)).sum() * 100 / len(np.concatenate(y_true))
-    #     logging.info("the accuracy of the original model:{}".format(np.around(orig_acc, 2)))
-    #     return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
-
     def _eval_cnn(self, loader):
         self._network.eval()
         y_pred, y_true = [], []
         orig_y_pred = []
-    
         for _, (_, inputs, targets) in enumerate(loader):
             inputs = inputs.to(self._device)
             with torch.no_grad():
                 orig_logits = self._network.forward_orig(inputs)["logits"][:, :self._total_classes]
                 orig_preds = torch.max(orig_logits, dim=1)[1].cpu().numpy()
                 orig_idx = torch.tensor([self.cls2task[v] for v in orig_preds], device=self._device)
-    
-                # Test the accuracy of the original model
+                
+                # test the accuracy of the original model
                 orig_y_pred.append(orig_preds)
-    
+                
                 all_features = torch.zeros(len(inputs), self._cur_task + 1, self._network.backbone.out_dim, device=self._device)
                 for t_id in range(self._cur_task + 1):
                     t_features = self._network.backbone(inputs, adapter_id=t_id, train=False)["features"]
                     all_features[:, t_id, :] = t_features
-    
+                
+                # self-refined
                 final_logits = []
+                
                 MAX_ITER = 4
                 for x_id in range(len(inputs)):
                     loop_num = 0
                     prev_adapter_idx = orig_idx[x_id]
                     while True:
                         loop_num += 1
-                        cur_feature = all_features[x_id, prev_adapter_idx].unsqueeze(0)  # shape=[1, 768]
+                        cur_feature = all_features[x_id, prev_adapter_idx].unsqueeze(0) # shape=[1, 768]
                         cur_logits = self._network.backbone(cur_feature, fc_only=True)["logits"][:, :self._total_classes]
                         cur_pred = torch.max(cur_logits, dim=1)[1].cpu().numpy()
                         cur_adapter_idx = torch.tensor([self.cls2task[v] for v in cur_pred], device=self._device)[0]
-    
-                        # Confidence-based early stopping
-                        if self.confidence_based_early_stopping(cur_logits, orig_logits[x_id]):
-                            break
+                        
                         if loop_num >= MAX_ITER or cur_adapter_idx == prev_adapter_idx:
                             break
                         else:
                             prev_adapter_idx = cur_adapter_idx
-    
+                        
                     final_logits.append(cur_logits)
-    
                 final_logits = torch.cat(final_logits, dim=0).to(self._device)
-    
-                # Apply adaptive ensemble refinement
-                final_logits = self.adaptive_ensemble_logits(orig_logits, final_logits, orig_idx)
-    
-                # Apply task-specific scaling to the logits
-                final_logits = self.scale_task_logits(final_logits, orig_idx)
     
                 if self.ensemble:
                     final_logits = F.softmax(final_logits, dim=1)
-                    orig_logits = F.softmax(orig_logits / (1 / (self._cur_task + 1)), dim=1)
+                    orig_logits = F.softmax(orig_logits / (1/(self._cur_task+1)), dim=1)
                     outputs = final_logits + orig_logits
                 else:
                     outputs = final_logits
-    
-                # Top-k predictions
-                predicts = torch.topk(outputs, k=self.topk, dim=1, largest=True, sorted=True)[1]
-                y_pred.append(predicts.cpu().numpy())
-                y_true.append(targets.cpu().numpy())
+                
+            predicts = torch.topk(
+                outputs, k=self.topk, dim=1, largest=True, sorted=True
+            )[
+                1
+            ]  # [bs, topk]
+            y_pred.append(predicts.cpu().numpy())
+            y_true.append(targets.cpu().numpy())
     
         orig_acc = (np.concatenate(orig_y_pred) == np.concatenate(y_true)).sum() * 100 / len(np.concatenate(y_true))
-        logging.info("Original model accuracy: {}".format(np.around(orig_acc, 2)))
-        return np.concatenate(y_pred), np.concatenate(y_true)
+        logging.info("the accuracy of the original model:{}".format(np.around(orig_acc, 2)))
+        return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
+
+    # def _eval_cnn(self, loader):
+    #     self._network.eval()
+    #     y_pred, y_true = [], []
+    #     orig_y_pred = []
+    
+    #     for _, (_, inputs, targets) in enumerate(loader):
+    #         inputs = inputs.to(self._device)
+    #         with torch.no_grad():
+    #             orig_logits = self._network.forward_orig(inputs)["logits"][:, :self._total_classes]
+    #             orig_preds = torch.max(orig_logits, dim=1)[1].cpu().numpy()
+    #             orig_idx = torch.tensor([self.cls2task[v] for v in orig_preds], device=self._device)
+    
+    #             # Test the accuracy of the original model
+    #             orig_y_pred.append(orig_preds)
+    
+    #             all_features = torch.zeros(len(inputs), self._cur_task + 1, self._network.backbone.out_dim, device=self._device)
+    #             for t_id in range(self._cur_task + 1):
+    #                 t_features = self._network.backbone(inputs, adapter_id=t_id, train=False)["features"]
+    #                 all_features[:, t_id, :] = t_features
+    
+    #             final_logits = []
+    #             MAX_ITER = 4
+    #             for x_id in range(len(inputs)):
+    #                 loop_num = 0
+    #                 prev_adapter_idx = orig_idx[x_id]
+    #                 while True:
+    #                     loop_num += 1
+    #                     cur_feature = all_features[x_id, prev_adapter_idx].unsqueeze(0)  # shape=[1, 768]
+    #                     cur_logits = self._network.backbone(cur_feature, fc_only=True)["logits"][:, :self._total_classes]
+    #                     cur_pred = torch.max(cur_logits, dim=1)[1].cpu().numpy()
+    #                     cur_adapter_idx = torch.tensor([self.cls2task[v] for v in cur_pred], device=self._device)[0]
+    
+    #                     # Confidence-based early stopping
+    #                     if self.confidence_based_early_stopping(cur_logits, orig_logits[x_id]):
+    #                         break
+    #                     if loop_num >= MAX_ITER or cur_adapter_idx == prev_adapter_idx:
+    #                         break
+    #                     else:
+    #                         prev_adapter_idx = cur_adapter_idx
+    
+    #                 final_logits.append(cur_logits)
+    
+    #             final_logits = torch.cat(final_logits, dim=0).to(self._device)
+    
+    #             # Apply adaptive ensemble refinement
+    #             final_logits = self.adaptive_ensemble_logits(orig_logits, final_logits, orig_idx)
+    
+    #             # Apply task-specific scaling to the logits
+    #             final_logits = self.scale_task_logits(final_logits, orig_idx)
+    
+    #             if self.ensemble:
+    #                 final_logits = F.softmax(final_logits, dim=1)
+    #                 orig_logits = F.softmax(orig_logits / (1 / (self._cur_task + 1)), dim=1)
+    #                 outputs = final_logits + orig_logits
+    #             else:
+    #                 outputs = final_logits
+    
+    #             # Top-k predictions
+    #             predicts = torch.topk(outputs, k=self.topk, dim=1, largest=True, sorted=True)[1]
+    #             y_pred.append(predicts.cpu().numpy())
+    #             y_true.append(targets.cpu().numpy())
+    
+    #     orig_acc = (np.concatenate(orig_y_pred) == np.concatenate(y_true)).sum() * 100 / len(np.concatenate(y_true))
+    #     logging.info("Original model accuracy: {}".format(np.around(orig_acc, 2)))
+    #     return np.concatenate(y_pred), np.concatenate(y_true)
     
     
-    # --- New Helper Methods ---
+    # # --- New Helper Methods ---
     
-    def adaptive_ensemble_logits(self, orig_logits, final_logits, orig_idx):
-        # Ensure orig_logits and final_logits have the same batch size
-        if orig_logits.shape[0] != final_logits.shape[0]:
-            # Align the batch size, assuming you want to replicate the logits
-            final_logits = final_logits.unsqueeze(0).expand_as(orig_logits)
+    # def adaptive_ensemble_logits(self, orig_logits, final_logits, orig_idx):
+    #     # Ensure orig_logits and final_logits have the same batch size
+    #     if orig_logits.shape[0] != final_logits.shape[0]:
+    #         # Align the batch size, assuming you want to replicate the logits
+    #         final_logits = final_logits.unsqueeze(0).expand_as(orig_logits)
         
-        # Compute task confidence or use your logic here
-        task_confidence = self.compute_task_confidence(orig_idx)
+    #     # Compute task confidence or use your logic here
+    #     task_confidence = self.compute_task_confidence(orig_idx)
     
-        # Calculate the ensemble logits
-        ensemble_logits = (final_logits * task_confidence) + (orig_logits * (1 - task_confidence))
+    #     # Calculate the ensemble logits
+    #     ensemble_logits = (final_logits * task_confidence) + (orig_logits * (1 - task_confidence))
     
-        return ensemble_logits
+    #     return ensemble_logits
     
         
-    # Scale task logits dynamically based on task performance
-    def scale_task_logits(self, logits, task_idx):
-        # Scaling based on the task index (newer tasks get higher scaling)
-        task_scaling = (self._cur_task - task_idx + 1) / self._cur_task  # Inverse scaling with task age
-        return logits * task_scaling
+    # # Scale task logits dynamically based on task performance
+    # def scale_task_logits(self, logits, task_idx):
+    #     # Scaling based on the task index (newer tasks get higher scaling)
+    #     task_scaling = (self._cur_task - task_idx + 1) / self._cur_task  # Inverse scaling with task age
+    #     return logits * task_scaling
     
-    # Confidence-based early stopping for self-refinement
-    def confidence_based_early_stopping(self, cur_logits, prev_logits):
-        print(f"cur_logits shape: {cur_logits.shape}")
-        print(f"prev_logits shape: {prev_logits.shape}")
-        # Ensure cur_logits and prev_logits are both 2D tensors: [batch_size, num_classes]
-        if cur_logits.ndimension() == 1:
-            cur_logits = cur_logits.unsqueeze(0)  # Add batch dimension if missing
-        if prev_logits.ndimension() == 1:
-            prev_logits = prev_logits.unsqueeze(0)  # Add batch dimension if missing
+    # # Confidence-based early stopping for self-refinement
+    # def confidence_based_early_stopping(self, cur_logits, prev_logits):
+    #     print(f"cur_logits shape: {cur_logits.shape}")
+    #     print(f"prev_logits shape: {prev_logits.shape}")
+    #     # Ensure cur_logits and prev_logits are both 2D tensors: [batch_size, num_classes]
+    #     if cur_logits.ndimension() == 1:
+    #         cur_logits = cur_logits.unsqueeze(0)  # Add batch dimension if missing
+    #     if prev_logits.ndimension() == 1:
+    #         prev_logits = prev_logits.unsqueeze(0)  # Add batch dimension if missing
         
-        # Calculate the confidence (or certainty) of the predictions
-        cur_confidence = torch.max(torch.softmax(cur_logits, dim=1), dim=1)[0]
-        prev_confidence = torch.max(torch.softmax(prev_logits, dim=1), dim=1)[0]
+    #     # Calculate the confidence (or certainty) of the predictions
+    #     cur_confidence = torch.max(torch.softmax(cur_logits, dim=1), dim=1)[0]
+    #     prev_confidence = torch.max(torch.softmax(prev_logits, dim=1), dim=1)[0]
         
-        # If the confidence difference is small, stop further refinement
-        if torch.abs(cur_confidence - prev_confidence).mean() < self.confidence_threshold:
-            return True  # Early stop
-        return False
+    #     # If the confidence difference is small, stop further refinement
+    #     if torch.abs(cur_confidence - prev_confidence).mean() < self.confidence_threshold:
+    #         return True  # Early stop
+    #     return False
 
     
 
