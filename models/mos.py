@@ -469,31 +469,18 @@ class Learner(BaseLearner):
                     outputs = final_logits + orig_logits
                 else:
                     outputs = final_logits
-
+                
+                # Add top-k predictions
+                predicts = torch.topk(
+                    outputs, k=self.topk, dim=1, largest=True, sorted=True
+                )[1]  # [bs, topk]
+                y_pred.append(predicts.cpu().numpy())
+                y_true.append(targets.cpu().numpy())
     
-                # Store predictions for accuracy evaluation
-                y_pred.extend(torch.max(outputs, dim=1)[1].cpu().numpy())
-                y_true.extend(targets.cpu().numpy())  # Ensure targets are converted to numpy arrays
-    
-        # Ensure predictions and labels are not empty
-        if len(orig_y_pred) == 0 or len(y_true) == 0:
-            logging.error("No predictions or labels were generated during evaluation.")
-            return [], []  # Return empty results to avoid crashing
-    
-        # Flatten the lists of predictions
-        orig_y_pred_flat = np.concatenate(orig_y_pred) if len(orig_y_pred) > 0 else []
-        y_true_flat = np.concatenate(y_true) if len(y_true) > 0 else []
-    
-        # Handle empty arrays gracefully
-        if len(orig_y_pred_flat) == 0 or len(y_true_flat) == 0:
-            logging.error("Empty predictions or ground truth after concatenation.")
-            return [], []
-    
-        # Calculate and log the accuracy of the original model
-        orig_acc = (orig_y_pred_flat == y_true_flat).sum() * 100 / len(y_true_flat)
-        logging.info("The accuracy of the original model: {}".format(np.around(orig_acc, 2)))
-    
-        # Return predictions and ground truth
-        return np.array(y_pred), np.array(y_true_flat)
+        # Calculate original accuracy
+        orig_acc = (np.concatenate(orig_y_pred) == np.concatenate(y_true)).sum() * 100 / len(np.concatenate(y_true))
+        logging.info("the accuracy of the original model:{}".format(np.around(orig_acc, 2)))
+        
+        return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
 
 
