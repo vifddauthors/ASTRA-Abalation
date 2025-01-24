@@ -418,69 +418,100 @@ class Learner(BaseLearner):
         self._network.eval()
         y_pred, y_true = [], []
         orig_y_pred = []
+    
         for _, (_, inputs, targets) in enumerate(loader):
             inputs = inputs.to(self._device)
             with torch.no_grad():
                 orig_logits = self._network.forward_orig(inputs)["logits"][:, :self._total_classes]
                 orig_preds = torch.max(orig_logits, dim=1)[1].cpu().numpy()
                 orig_idx = torch.tensor([self.cls2task[v] for v in orig_preds], device=self._device)
-                
+    
                 # Test the accuracy of the original model
                 orig_y_pred.append(orig_preds)
-                
+    
                 all_features = torch.zeros(len(inputs), self._cur_task + 1, self._network.backbone.out_dim, device=self._device)
                 for t_id in range(self._cur_task + 1):
                     t_features = self._network.backbone(inputs, adapter_id=t_id, train=False)["features"]
                     all_features[:, t_id, :] = t_features
-                
-                # Self-refined predictions
+    
                 final_logits = []
                 MAX_ITER = 4
                 for x_id in range(len(inputs)):
                     loop_num = 0
                     prev_adapter_idx = orig_idx[x_id]
-                    cur_logits = None
-    
                     while True:
                         loop_num += 1
                         cur_feature = all_features[x_id, prev_adapter_idx].unsqueeze(0)  # shape=[1, 768]
                         cur_logits = self._network.backbone(cur_feature, fc_only=True)["logits"][:, :self._total_classes]
-                        
-                        # Incorporate original logits dynamically
-                        if self.ensemble:
-                            orig_weight = 0.5  # Weight for original logits
-                            cur_logits = F.softmax(cur_logits, dim=1) * (1 - orig_weight) + F.softmax(orig_logits[x_id].unsqueeze(0), dim=1) * orig_weight
-                        
                         cur_pred = torch.max(cur_logits, dim=1)[1].cpu().numpy()
                         cur_adapter_idx = torch.tensor([self.cls2task[v] for v in cur_pred], device=self._device)[0]
-                        
+    
+                        # Confidence-based early stopping
+                        if self.confidence_based_early_stopping(cur_logits, orig_logits[x_id]):
+                            break
                         if loop_num >= MAX_ITER or cur_adapter_idx == prev_adapter_idx:
                             break
                         else:
                             prev_adapter_idx = cur_adapter_idx
-                    
+    
                     final_logits.append(cur_logits)
+    
                 final_logits = torch.cat(final_logits, dim=0).to(self._device)
     
+                # Apply adaptive ensemble refinement
+                final_logits = self.adaptive_ensemble_logits(orig_logits, final_logits, orig_idx)
+    
+                # Apply task-specific scaling to the logits
+                final_logits = self.scale_task_logits(final_logits, orig_idx)
+    
                 if self.ensemble:
-                    # Final ensemble of original and refined logits
                     final_logits = F.softmax(final_logits, dim=1)
                     orig_logits = F.softmax(orig_logits / (1 / (self._cur_task + 1)), dim=1)
                     outputs = final_logits + orig_logits
                 else:
                     outputs = final_logits
-                
-                # Add top-k predictions
-                predicts = torch.topk(
-                    outputs, k=self.topk, dim=1, largest=True, sorted=True
-                )[1]  # [bs, topk]
+    
+                # Top-k predictions
+                predicts = torch.topk(outputs, k=self.topk, dim=1, largest=True, sorted=True)[1]
                 y_pred.append(predicts.cpu().numpy())
                 y_true.append(targets.cpu().numpy())
     
-        # Calculate original accuracy
         orig_acc = (np.concatenate(orig_y_pred) == np.concatenate(y_true)).sum() * 100 / len(np.concatenate(y_true))
-        logging.info("the accuracy of the original model:{}".format(np.around(orig_acc, 2)))
+        logging.info("Original model accuracy: {}".format(np.around(orig_acc, 2)))
+        return np.concatenate(y_pred), np.concatenate(y_true)
+    
+    
+    # --- New Helper Methods ---
+    
+    # Adaptive ensemble logits refinement using confidence-based dynamic weighting
+    def adaptive_ensemble_logits(self, orig_logits, final_logits, task_idx):
+        # Compute entropy as confidence measure
+        entropy = torch.nn.functional.softmax(final_logits, dim=1)
+        entropy = -torch.sum(entropy * torch.log(entropy + 1e-8), dim=1)  # Negative log likelihood for entropy
+    
+        # Normalize entropy to get the weight (higher entropy means more uncertainty, lower weight)
+        task_confidence = torch.exp(-entropy)
+        task_confidence = task_confidence / task_confidence.sum()  # Normalize to get weights
+    
+        # Dynamically weight the logits from the original and self-refined model based on confidence
+        ensemble_logits = (final_logits * task_confidence) + (orig_logits * (1 - task_confidence))
+        return ensemble_logits
+    
+    # Scale task logits dynamically based on task performance
+    def scale_task_logits(self, logits, task_idx):
+        # Scaling based on the task index (newer tasks get higher scaling)
+        task_scaling = (self._cur_task - task_idx + 1) / self._cur_task  # Inverse scaling with task age
+        return logits * task_scaling
+    
+    # Confidence-based early stopping for self-refinement
+    def confidence_based_early_stopping(self, cur_logits, prev_logits):
+        # Calculate the confidence (or certainty) of the predictions
+        cur_confidence = torch.max(torch.softmax(cur_logits, dim=1), dim=1)[0]
+        prev_confidence = torch.max(torch.softmax(prev_logits, dim=1), dim=1)[0]
         
-        return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
-
+        # If the confidence difference is small, stop further refinement
+        if torch.abs(cur_confidence - prev_confidence).mean() < self.confidence_threshold:
+            return True  # Early stop
+        return False
+    
 
