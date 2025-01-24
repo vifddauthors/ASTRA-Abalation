@@ -505,6 +505,14 @@ class Learner(BaseLearner):
     
     # Confidence-based early stopping for self-refinement
     def confidence_based_early_stopping(self, cur_logits, prev_logits):
+        print(f"cur_logits shape: {cur_logits.shape}")
+        print(f"prev_logits shape: {prev_logits.shape}")
+        # Ensure cur_logits and prev_logits are both 2D tensors: [batch_size, num_classes]
+        if cur_logits.ndimension() == 1:
+            cur_logits = cur_logits.unsqueeze(0)  # Add batch dimension if missing
+        if prev_logits.ndimension() == 1:
+            prev_logits = prev_logits.unsqueeze(0)  # Add batch dimension if missing
+        
         # Calculate the confidence (or certainty) of the predictions
         cur_confidence = torch.max(torch.softmax(cur_logits, dim=1), dim=1)[0]
         prev_confidence = torch.max(torch.softmax(prev_logits, dim=1), dim=1)[0]
@@ -513,5 +521,6 @@ class Learner(BaseLearner):
         if torch.abs(cur_confidence - prev_confidence).mean() < self.confidence_threshold:
             return True  # Early stop
         return False
+
     
 
