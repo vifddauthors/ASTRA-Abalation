@@ -400,26 +400,84 @@ class VisionTransformer(nn.Module):
                 self.up_weight_sum[layer_idx].append(self.cur_adapter[layer_idx].up_proj.weight.data)
                 self.up_bias_sum[layer_idx].append(self.cur_adapter[layer_idx].up_proj.bias.data)
     
-    def reweight_adapter(self, adapter, idx):
-        # adapter: original adapter
-        # idx: adapter idx
-        # this function is to reweight the adapter using momentum
+    # def reweight_adapter(self, adapter, idx):
+    #     # adapter: original adapter
+    #     # idx: adapter idx
+    #     # this function is to reweight the adapter using momentum
+    #     momentum = self.config.adapter_momentum
+    #     if momentum == 0 or idx == 0:
+    #         return adapter
+
+    #     for layer_idx in range(len(self.blocks)):
+    #         adapter[layer_idx].down_proj.weight.data = (1 - momentum) * adapter[layer_idx].down_proj.weight.data \
+    #                                                                 + momentum * self.down_weight_sum[layer_idx][idx-1] / idx
+    #         adapter[layer_idx].down_proj.bias.data = (1 - momentum) * adapter[layer_idx].down_proj.bias.data \
+    #                                                                 + momentum * self.down_bias_sum[layer_idx][idx-1] / idx
+    #         adapter[layer_idx].up_proj.weight.data = (1 - momentum) * adapter[layer_idx].up_proj.weight.data \
+    #                                                                 + momentum * self.up_weight_sum[layer_idx][idx-1] / idx
+    #         adapter[layer_idx].up_proj.bias.data = (1 - momentum) * adapter[layer_idx].up_proj.bias.data \
+    #                                                                 + momentum * self.up_bias_sum[layer_idx][idx-1] / idx
+    #     # import pdb; pdb.set_trace()
+    #     return adapter
+
+
+    def reweight_adapter(self, adapter, idx, class_frequencies=None, class_losses=None):
+        """
+        Reweight the adapter with a focus on addressing class imbalance.
+        
+        Parameters:
+            adapter: The original adapter to be reweighted.
+            idx: The current adapter index.
+            class_frequencies: A tensor or list containing the frequency of each class (optional).
+            class_losses: A tensor or list containing the average loss for each class (optional).
+        
+        Returns:
+            The reweighted adapter.
+        """
+        # Momentum parameter from the configuration
         momentum = self.config.adapter_momentum
         if momentum == 0 or idx == 0:
             return adapter
-
-        for layer_idx in range(len(self.blocks)):
-            adapter[layer_idx].down_proj.weight.data = (1 - momentum) * adapter[layer_idx].down_proj.weight.data \
-                                                                    + momentum * self.down_weight_sum[layer_idx][idx-1] / idx
-            adapter[layer_idx].down_proj.bias.data = (1 - momentum) * adapter[layer_idx].down_proj.bias.data \
-                                                                    + momentum * self.down_bias_sum[layer_idx][idx-1] / idx
-            adapter[layer_idx].up_proj.weight.data = (1 - momentum) * adapter[layer_idx].up_proj.weight.data \
-                                                                    + momentum * self.up_weight_sum[layer_idx][idx-1] / idx
-            adapter[layer_idx].up_proj.bias.data = (1 - momentum) * adapter[layer_idx].up_proj.bias.data \
-                                                                    + momentum * self.up_bias_sum[layer_idx][idx-1] / idx
-        # import pdb; pdb.set_trace()
-        return adapter
     
+        # Compute class importance factors
+        # Lower frequencies or higher losses lead to higher importance
+        if class_frequencies is not None:
+            freq_importance = 1 / (class_frequencies + 1e-8)  # Avoid division by zero
+        else:
+            freq_importance = torch.ones(self._total_classes).to(adapter[0].down_proj.weight.device)
+    
+        if class_losses is not None:
+            loss_importance = class_losses / (class_losses.mean() + 1e-8)  # Normalize by mean loss
+        else:
+            loss_importance = torch.ones(self._total_classes).to(adapter[0].down_proj.weight.device)
+    
+        # Combine importance factors (e.g., weighted sum or product)
+        importance_factor = freq_importance * loss_importance
+        importance_factor = importance_factor / importance_factor.mean()  # Normalize to mean=1
+    
+        # Reweight the adapter using momentum and class importance
+        for layer_idx in range(len(self.blocks)):
+            # Apply importance factor to the update
+            class_idx_factor = importance_factor[idx - 1]  # Adjust based on current class/task index
+            adapter[layer_idx].down_proj.weight.data = (
+                (1 - momentum) * adapter[layer_idx].down_proj.weight.data
+                + momentum * class_idx_factor * self.down_weight_sum[layer_idx][idx - 1] / idx
+            )
+            adapter[layer_idx].down_proj.bias.data = (
+                (1 - momentum) * adapter[layer_idx].down_proj.bias.data
+                + momentum * class_idx_factor * self.down_bias_sum[layer_idx][idx - 1] / idx
+            )
+            adapter[layer_idx].up_proj.weight.data = (
+                (1 - momentum) * adapter[layer_idx].up_proj.weight.data
+                + momentum * class_idx_factor * self.up_weight_sum[layer_idx][idx - 1] / idx
+            )
+            adapter[layer_idx].up_proj.bias.data = (
+                (1 - momentum) * adapter[layer_idx].up_proj.bias.data
+                + momentum * class_idx_factor * self.up_bias_sum[layer_idx][idx - 1] / idx
+            )
+    
+        return adapter
+
     def forward_features(self, x, adapter_id, train):       
         B = x.shape[0]
         x = self.patch_embed(x)
