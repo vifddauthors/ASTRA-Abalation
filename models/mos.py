@@ -283,7 +283,7 @@ class Learner(BaseLearner):
     
             # Use reweight_adapter with class frequencies and losses
             if self.args["adapter_momentum"] > 0:
-                self._network.backbone.adapter_merge(class_frequencies_tensor, class_losses=class_losses_tensor)
+                self._network.backbone.adapter_merge(self._total_classes,class_frequencies_tensor, class_losses=class_losses_tensor)
     
             if scheduler:
                 scheduler.step()
