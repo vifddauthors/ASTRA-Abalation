@@ -375,12 +375,12 @@ class VisionTransformer(nn.Module):
         for i in range(len(self.blocks)):
             self.cur_adapter[i].requires_grad = True
 
-    def adapter_merge(self):
+    def adapter_merge(self,class_frequencies, class_losses):
         adapter_momentum = self.config.adapter_momentum
         if len(self.adapter_list) == 0 or adapter_momentum == 0:
             pass
         else:   
-            self.cur_adapter = self.reweight_adapter(self.cur_adapter, len(self.adapter_list))
+            self.cur_adapter = self.reweight_adapter(self.cur_adapter, len(self.adapter_list),class_frequencies, class_losses)
 
     def adapter_update(self):
         self.adapter_list.append(copy.deepcopy(self.cur_adapter))
