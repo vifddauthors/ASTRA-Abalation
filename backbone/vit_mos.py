@@ -375,12 +375,12 @@ class VisionTransformer(nn.Module):
         for i in range(len(self.blocks)):
             self.cur_adapter[i].requires_grad = True
 
-    def adapter_merge(self,class_frequencies, class_losses):
+    def adapter_merge(self,total_classes, class_frequencies, class_losses):
         adapter_momentum = self.config.adapter_momentum
         if len(self.adapter_list) == 0 or adapter_momentum == 0:
             pass
         else:   
-            self.cur_adapter = self.reweight_adapter(self.cur_adapter, len(self.adapter_list),class_frequencies, class_losses)
+            self.cur_adapter = self.reweight_adapter(self.cur_adapter, len(self.adapter_list), total_classes, class_frequencies, class_losses)
 
     def adapter_update(self):
         self.adapter_list.append(copy.deepcopy(self.cur_adapter))
@@ -421,7 +421,7 @@ class VisionTransformer(nn.Module):
     #     return adapter
 
 
-    def reweight_adapter(self, adapter, idx, class_frequencies=None, class_losses=None):
+    def reweight_adapter(self, adapter, idx, total_classes, class_frequencies=None, class_losses=None):
         """
         Reweight the adapter with a focus on addressing class imbalance.
         
@@ -444,12 +444,12 @@ class VisionTransformer(nn.Module):
         if class_frequencies is not None:
             freq_importance = 1 / (class_frequencies + 1e-8)  # Avoid division by zero
         else:
-            freq_importance = torch.ones(self._total_classes).to(adapter[0].down_proj.weight.device)
+            freq_importance = torch.ones(total_classes).to(adapter[0].down_proj.weight.device)
     
         if class_losses is not None:
             loss_importance = class_losses / (class_losses.mean() + 1e-8)  # Normalize by mean loss
         else:
-            loss_importance = torch.ones(self._total_classes).to(adapter[0].down_proj.weight.device)
+            loss_importance = torch.ones(total_classes).to(adapter[0].down_proj.weight.device)
     
         # Combine importance factors (e.g., weighted sum or product)
         importance_factor = freq_importance * loss_importance
