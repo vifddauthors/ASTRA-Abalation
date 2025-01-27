@@ -248,7 +248,7 @@ class Learner(BaseLearner):
     
                 # Update EMA for adapters if momentum > 0
                 if self.args["adapter_momentum"] > 0:
-                    self._network.backbone.adapter_merge(self.class_frequencies)
+                    self._network.backbone.adapter_merge()
     
                 losses += loss.sum().item()  # Sum loss over batch
     
