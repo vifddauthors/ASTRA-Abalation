@@ -30,6 +30,17 @@ class DataManager(object):
     def nb_classes(self):
         return len(self._class_order)
 
+    def get_class_frequencies(self):
+        """
+        Calculate the number of samples per class in the dataset.
+        """
+        class_counts = {}
+        for data, label in self.dataset:  # Replace `self.dataset` with the actual dataset object
+            if label not in class_counts:
+                class_counts[label] = 0
+            class_counts[label] += 1
+        return class_counts
+        
     def get_dataset(
         self, indices, source, mode, appendent=None, ret_data=False, m_rate=None
     ):
