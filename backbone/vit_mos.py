@@ -257,7 +257,7 @@ class Block(nn.Module):
 class VisionTransformer(nn.Module):
     """ Vision Transformer with support for global average pooling
     """
-    def __init__(self, global_pool=False, img_size=224, patch_size=16, in_chans=3, num_classes=1000, embed_dim=768, depth=12,
+    def __init__(self, global_pool=False, img_size=224, patch_size=16, in_chans=3, num_classes=1000, class_frequencies=None, embed_dim=768, depth=12,
                  num_heads=12, mlp_ratio=4., qkv_bias=True, representation_size=None, distilled=False,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0., embed_layer=PatchEmbed, norm_layer=None,
                  act_layer=None, weight_init='', tuning_config=None):
@@ -266,6 +266,7 @@ class VisionTransformer(nn.Module):
         print("I'm using ViT with adapters.")
         self.tuning_config = tuning_config
         self.num_classes = num_classes
+        self.class_frequencies=class_frequencies
         self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
         self.num_tokens = 2 if distilled else 1
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)
