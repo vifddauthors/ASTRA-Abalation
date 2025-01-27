@@ -382,7 +382,7 @@ class VisionTransformer(nn.Module):
         if len(self.adapter_list) == 0 or adapter_momentum == 0:
             pass
         else:   
-            self.cur_adapter = self.reweight_adapter(self.cur_adapter, len(self.adapter_list), self.class_frequencies, class_losses)
+            self.cur_adapter = self.reweight_adapter(self.cur_adapter, len(self.adapter_list), class_losses)
 
     def adapter_update(self):
         self.adapter_list.append(copy.deepcopy(self.cur_adapter))
@@ -423,7 +423,7 @@ class VisionTransformer(nn.Module):
     #     return adapter
 
 
-    def reweight_adapter(self, adapter, idx, class_frequencies=None, class_losses=None):
+    def reweight_adapter(self, adapter, idx, class_losses=None):
         """
         Reweight the adapter with a focus on addressing class imbalance.
         
@@ -437,6 +437,7 @@ class VisionTransformer(nn.Module):
             The reweighted adapter.
         """
         total_classes=self.num_classes
+        class_frequencies=self.class_frequencies
         # Momentum parameter from the configuration
         momentum = self.config.adapter_momentum
         if momentum == 0 or idx == 0:
