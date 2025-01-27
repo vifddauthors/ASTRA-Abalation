@@ -270,7 +270,6 @@ class VisionTransformer(nn.Module):
         self.num_tokens = 2 if distilled else 1
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)
         act_layer = act_layer or nn.GELU
-        self.total_classes = None
         self.class_frequencies = None
         self.class_losses = None
 
@@ -383,7 +382,7 @@ class VisionTransformer(nn.Module):
         if len(self.adapter_list) == 0 or adapter_momentum == 0:
             pass
         else:   
-            self.cur_adapter = self.reweight_adapter(self.cur_adapter, len(self.adapter_list), total_classes, class_frequencies, class_losses)
+            self.cur_adapter = self.reweight_adapter(self.cur_adapter, len(self.adapter_list), self.num_classes, class_frequencies, class_losses)
 
     def adapter_update(self):
         self.adapter_list.append(copy.deepcopy(self.cur_adapter))
