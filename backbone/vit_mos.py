@@ -423,14 +423,13 @@ class VisionTransformer(nn.Module):
     #     return adapter
 
 
-    def reweight_adapter(self, adapter, idx):
+    def reweight_adapter(self, adapter, idx, class_losses=None):
         """
         Reweight the adapter with a focus on addressing class imbalance.
         
         Parameters:
             adapter: The original adapter to be reweighted.
             idx: The current adapter index.
-            class_frequencies: A tensor or list containing the frequency of each class (optional).
             class_losses: A tensor or list containing the average loss for each class (optional).
         
         Returns:
@@ -438,40 +437,35 @@ class VisionTransformer(nn.Module):
         """
         total_classes = self.num_classes
         class_frequencies = self.class_frequencies
-        class_losses=self.class_losses
-    
-        # Ensure class_frequencies is a tensor
-        if isinstance(class_frequencies, list):
-            class_frequencies = torch.tensor(class_frequencies, dtype=torch.float32).to(adapter[0].down_proj.weight.device)
-    
-        # Momentum parameter from the configuration
         momentum = self.config.adapter_momentum
+    
         if momentum == 0 or idx == 0:
             return adapter
     
         # Compute class importance factors
-        # Lower frequencies or higher losses lead to higher importance
         if class_frequencies is not None:
-            freq_importance = 1 / (class_frequencies + 1e-8)  # Avoid division by zero
+            freq_importance = 1 / (class_frequencies + 1e-8)
         else:
             freq_importance = torch.ones(total_classes).to(adapter[0].down_proj.weight.device)
     
         if class_losses is not None:
-            # Ensure class_losses is a tensor
-            if isinstance(class_losses, list):
-                class_losses = torch.tensor(class_losses, dtype=torch.float32).to(adapter[0].down_proj.weight.device)
-            loss_importance = class_losses / (class_losses.mean() + 1e-8)  # Normalize by mean loss
+            class_losses = class_losses.to(freq_importance.device)
+            if class_losses.size(0) != freq_importance.size(0):
+                # Pad missing classes with zeros
+                padded_losses = torch.zeros_like(freq_importance)
+                padded_losses[:class_losses.size(0)] = class_losses
+                class_losses = padded_losses
+            loss_importance = class_losses / (class_losses.mean() + 1e-8)
         else:
-            loss_importance = torch.ones(total_classes).to(adapter[0].down_proj.weight.device)
+            loss_importance = torch.ones_like(freq_importance)
     
-        # Combine importance factors (e.g., weighted sum or product)
+        # Combine importance factors
         importance_factor = freq_importance * loss_importance
-        importance_factor = importance_factor / importance_factor.mean()  # Normalize to mean=1
+        importance_factor = importance_factor / importance_factor.mean()
     
-        # Reweight the adapter using momentum and class importance
+        # Reweight adapter
         for layer_idx in range(len(self.blocks)):
-            # Apply importance factor to the update
-            class_idx_factor = importance_factor[idx - 1]  # Adjust based on current class/task index
+            class_idx_factor = importance_factor[idx - 1]
             adapter[layer_idx].down_proj.weight.data = (
                 (1 - momentum) * adapter[layer_idx].down_proj.weight.data
                 + momentum * class_idx_factor * self.down_weight_sum[layer_idx][idx - 1] / idx
