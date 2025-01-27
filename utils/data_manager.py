@@ -33,15 +33,19 @@ class DataManager(object):
     @property
     def class_frequencies(self):
         """
-        Calculate the number of samples per class in the dataset and return as a list.
+        Calculate the number of samples per class in the training dataset and return as a list.
         """
-        max_class = max(label for _, label in self.dataset)  # Determine the maximum class label
+        if not hasattr(self, '_train_targets') or self._train_targets is None:
+            raise AttributeError("Training targets (_train_targets) are not initialized.")
+        
+        max_class = max(self._train_targets)  # Determine the maximum class label
         class_counts = [0] * (max_class + 1)  # Create a list initialized to zeros for all classes
     
-        for _, label in self.dataset:  # Replace `self.dataset` with the actual dataset object
+        for label in self._train_targets:  # Iterate over the training targets
             class_counts[label] += 1
     
         return class_counts
+
     
             
     def get_dataset(
