@@ -220,76 +220,60 @@ class Learner(BaseLearner):
 
     def _init_train(self, train_loader, test_loader, optimizer, scheduler):
         prog_bar = tqdm(range(self.args['tuned_epoch']))
-    
-        # Initialize structures for class frequencies and losses
-        class_counts = {cls: 0 for cls in range(self._total_classes)}
-        class_losses = {cls: {"loss": 0.0, "count": 0} for cls in range(self._total_classes)}
-    
         for _, epoch in enumerate(prog_bar):
             self._network.backbone.train()
     
             losses = 0.0
             correct, total = 0, 0
+    
+            # Initialize class-specific loss tracker
+            class_losses = torch.zeros(self._total_classes, device=self._device)
+            class_counts = torch.zeros(self._total_classes, device=self._device)
+    
             for i, (_, inputs, targets) in enumerate(train_loader):
                 inputs, targets = inputs.to(self._device), targets.to(self._device)
     
+                # Forward pass
                 output = self._network(inputs, adapter_id=self._cur_task, train=True)
                 logits = output["logits"][:, :self._total_classes]
                 logits[:, :self._known_classes] = float('-inf')
     
-                loss = F.cross_entropy(logits, targets.long())
+                # Compute cross-entropy loss
+                loss = F.cross_entropy(logits, targets.long(), reduction='none')  # Per-sample loss
                 loss += self.orth_loss(output['pre_logits'], targets)
     
                 optimizer.zero_grad()
-                loss.backward()
+                loss.mean().backward()  # Mean loss for optimization
                 optimizer.step()
     
-                # Update class counts
-                for cls in range(self._total_classes):
-                    class_counts[cls] += (targets == cls).sum().item()
+                # Update EMA for adapters if momentum > 0
+                if self.args["adapter_momentum"] > 0:
+                    self._network.backbone.adapter_merge(self.class_frequencies)
     
-                # Update class losses
-                for cls in range(self._total_classes):
-                    cls_mask = (targets == cls)
-                    if cls_mask.sum() > 0:
-                        cls_logits = logits[cls_mask]
-                        cls_targets = targets[cls_mask]
-                        cls_loss = F.cross_entropy(cls_logits, cls_targets)
-                        class_losses[cls]["loss"] += cls_loss.item() * cls_mask.sum().item()
-                        class_losses[cls]["count"] += cls_mask.sum().item()
+                losses += loss.sum().item()  # Sum loss over batch
     
-                losses += loss.item()
+                # Track class-specific losses
+                for class_id in range(self._total_classes):
+                    class_mask = (targets == class_id)  # Mask for current class
+                    class_counts[class_id] += class_mask.sum()
+                    class_losses[class_id] += loss[class_mask].sum()  # Add losses for the class
+    
+                # Compute training accuracy
                 _, preds = torch.max(logits, dim=1)
-                correct += preds.eq(targets.expand_as(preds)).cpu().sum()
+                correct += preds.eq(targets).cpu().sum()
                 total += len(targets)
     
-            # Calculate class frequencies and average losses
-            total_samples = sum(class_counts.values())
-            class_frequencies = {
-                cls: count / total_samples for cls, count in class_counts.items()
-            }
-            class_frequencies_tensor = torch.tensor(
-                [class_frequencies.get(cls, 0) for cls in range(self._total_classes)]
-            ).to(self._device)
-    
-            avg_class_losses = {
-                cls: class_losses[cls]["loss"] / class_losses[cls]["count"]
-                if class_losses[cls]["count"] > 0 else 1.0
-                for cls in range(self._total_classes)
-            }
-            class_losses_tensor = torch.tensor(
-                [avg_class_losses.get(cls, 0) for cls in range(self._total_classes)]
-            ).to(self._device)
-    
-            # Use reweight_adapter with class frequencies and losses
-            if self.args["adapter_momentum"] > 0:
-                self._network.backbone.adapter_merge(self._total_classes,class_frequencies_tensor, class_losses=class_losses_tensor)
+            # Normalize class losses (avoid division by zero)
+            class_losses /= (class_counts + 1e-8)
     
             if scheduler:
                 scheduler.step()
-    
             train_acc = np.around(tensor2numpy(correct) * 100 / total, decimals=2)
     
+            # Pass normalized class losses to the network
+            self._network.backbone.class_losses = class_losses
+    
+            # Logging progress
             info = "Task {}, Epoch {}/{} => Loss {:.3f}, Train_accy {:.2f}".format(
                 self._cur_task,
                 epoch + 1,
@@ -300,6 +284,7 @@ class Learner(BaseLearner):
             prog_bar.set_description(info)
     
         logging.info(info)
+
 
     @torch.no_grad()
     def _compute_mean(self, model):
