@@ -33,15 +33,17 @@ class DataManager(object):
     @property
     def class_frequencies(self):
         """
-        Calculate the number of samples per class in the dataset.
+        Calculate the number of samples per class in the dataset and return as a list.
         """
-        class_counts = {}
-        for data, label in self.dataset:  # Replace `self.dataset` with the actual dataset object
-            if label not in class_counts:
-                class_counts[label] = 0
+        max_class = max(label for _, label in self.dataset)  # Determine the maximum class label
+        class_counts = [0] * (max_class + 1)  # Create a list initialized to zeros for all classes
+    
+        for _, label in self.dataset:  # Replace `self.dataset` with the actual dataset object
             class_counts[label] += 1
+    
         return class_counts
-        
+    
+            
     def get_dataset(
         self, indices, source, mode, appendent=None, ret_data=False, m_rate=None
     ):
