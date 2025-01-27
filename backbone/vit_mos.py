@@ -377,12 +377,12 @@ class VisionTransformer(nn.Module):
         for i in range(len(self.blocks)):
             self.cur_adapter[i].requires_grad = True
 
-    def adapter_merge(self,total_classes, class_frequencies, class_losses):
+    def adapter_merge(self):
         adapter_momentum = self.config.adapter_momentum
         if len(self.adapter_list) == 0 or adapter_momentum == 0:
             pass
         else:   
-            self.cur_adapter = self.reweight_adapter(self.cur_adapter, len(self.adapter_list), class_losses)
+            self.cur_adapter = self.reweight_adapter(self.cur_adapter, len(self.adapter_list))
 
     def adapter_update(self):
         self.adapter_list.append(copy.deepcopy(self.cur_adapter))
@@ -423,7 +423,7 @@ class VisionTransformer(nn.Module):
     #     return adapter
 
 
-    def reweight_adapter(self, adapter, idx, class_losses=None):
+    def reweight_adapter(self, adapter, idx):
         """
         Reweight the adapter with a focus on addressing class imbalance.
         
@@ -438,6 +438,7 @@ class VisionTransformer(nn.Module):
         """
         total_classes = self.num_classes
         class_frequencies = self.class_frequencies
+        class_losses=self.class_losses
     
         # Ensure class_frequencies is a tensor
         if isinstance(class_frequencies, list):
