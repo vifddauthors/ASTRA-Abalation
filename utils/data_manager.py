@@ -30,7 +30,8 @@ class DataManager(object):
     def nb_classes(self):
         return len(self._class_order)
 
-    def get_class_frequencies(self):
+    @property
+    def class_frequencies(self):
         """
         Calculate the number of samples per class in the dataset.
         """
