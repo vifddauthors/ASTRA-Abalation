@@ -436,8 +436,13 @@ class VisionTransformer(nn.Module):
         Returns:
             The reweighted adapter.
         """
-        total_classes=self.num_classes
-        class_frequencies=self.class_frequencies
+        total_classes = self.num_classes
+        class_frequencies = self.class_frequencies
+    
+        # Ensure class_frequencies is a tensor
+        if isinstance(class_frequencies, list):
+            class_frequencies = torch.tensor(class_frequencies, dtype=torch.float32).to(adapter[0].down_proj.weight.device)
+    
         # Momentum parameter from the configuration
         momentum = self.config.adapter_momentum
         if momentum == 0 or idx == 0:
@@ -451,6 +456,9 @@ class VisionTransformer(nn.Module):
             freq_importance = torch.ones(total_classes).to(adapter[0].down_proj.weight.device)
     
         if class_losses is not None:
+            # Ensure class_losses is a tensor
+            if isinstance(class_losses, list):
+                class_losses = torch.tensor(class_losses, dtype=torch.float32).to(adapter[0].down_proj.weight.device)
             loss_importance = class_losses / (class_losses.mean() + 1e-8)  # Normalize by mean loss
         else:
             loss_importance = torch.ones(total_classes).to(adapter[0].down_proj.weight.device)
@@ -481,6 +489,7 @@ class VisionTransformer(nn.Module):
             )
     
         return adapter
+
 
     def forward_features(self, x, adapter_id, train):       
         B = x.shape[0]
