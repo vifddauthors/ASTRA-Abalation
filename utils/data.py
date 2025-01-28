@@ -278,11 +278,11 @@ class iImageNetR_imbalanced(iData):
             self.imbalance_classes = np.random.choice(
                 np.arange(num_classes), num_imbalance_classes, replace=False
             )
-
+    
         # Create new training data with imbalance
         new_train_data = []
         new_train_targets = []
-
+    
         class_counts = Counter(self.train_targets)
         for cls in class_counts.keys():
             cls_indices = np.where(np.array(self.train_targets) == cls)[0]
@@ -291,15 +291,17 @@ class iImageNetR_imbalanced(iData):
                 reduced_indices = np.random.choice(
                     cls_indices, int(len(cls_indices) * self.imbalance_ratio), replace=False
                 )
-                new_train_data.extend(np.array(self.train_data)[reduced_indices].tolist())
-                new_train_targets.extend(np.array(self.train_targets)[reduced_indices].tolist())
+                new_train_data.extend(np.array(self.train_data)[reduced_indices])
+                new_train_targets.extend(np.array(self.train_targets)[reduced_indices])
             else:
                 # Keep all samples for other classes
-                new_train_data.extend(np.array(self.train_data)[cls_indices].tolist())
-                new_train_targets.extend(np.array(self.train_targets)[cls_indices].tolist())
-
-        self.train_data = new_train_data
-        self.train_targets = new_train_targets
+                new_train_data.extend(np.array(self.train_data)[cls_indices])
+                new_train_targets.extend(np.array(self.train_targets)[cls_indices])
+    
+        # Ensure train_data and train_targets are NumPy arrays
+        self.train_data = np.array(new_train_data)
+        self.train_targets = np.array(new_train_targets)
+    
         # Count and print the number of samples per class after applying imbalance
         new_class_counts = Counter(self.train_targets)
         print("\nNumber of samples per class in the training set AFTER imbalance:")
