@@ -300,6 +300,11 @@ class iImageNetR_imbalanced(iData):
 
         self.train_data = new_train_data
         self.train_targets = new_train_targets
+        # Count and print the number of samples per class after applying imbalance
+        new_class_counts = Counter(self.train_targets)
+        print("\nNumber of samples per class in the training set AFTER imbalance:")
+        for cls, count in new_class_counts.items():
+            print(f"Class {cls}: {count} samples")
 
 class iImageNetA(iData):
     use_path = True
