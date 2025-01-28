@@ -243,6 +243,8 @@ def _get_idata(dataset_name, args=None):
         return iImageNet100()
     elif name == "cifar224":
         return iCIFAR224(args)
+    elif name == "cifar224_imbalanced":
+        return iCIFAR224_imbalanced(args)
     elif name == "imagenetr":
         return iImageNetR(args)
     elif name=="imagenetr_imbalanced":
@@ -251,12 +253,20 @@ def _get_idata(dataset_name, args=None):
         return iImageNetA()
     elif name == "cub":
         return CUB()
+    elif name == "cub_imbalanced":
+        return CUB_imbalanced()
+    elif name == "objectnet_imbalanced":
+        return objectnet_imbalanced()
     elif name == "objectnet":
         return objectnet()
     elif name == "omnibenchmark":
         return omnibenchmark()
+    elif name == "omnibenchmark_imbalanced":
+        return omnibenchmark_imbalanced()
     elif name == "vtab":
         return vtab()
+    elif name == "vtab_imbalanced":
+        return vtab_imbalanced()
 
     else:
         raise NotImplementedError("Unknown dataset {}.".format(dataset_name))
