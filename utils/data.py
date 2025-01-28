@@ -1,6 +1,7 @@
 import numpy as np
 from torchvision import datasets, transforms
 from utils.toolkit import split_images_labels
+from collections import Counter
 
 
 class iData(object):
@@ -234,6 +235,71 @@ class iImageNetR(iData):
         self.train_data, self.train_targets = split_images_labels(train_dset.imgs)
         self.test_data, self.test_targets = split_images_labels(test_dset.imgs)
 
+
+
+class iImageNetR_imbalanced(iData):
+    def __init__(self, args, imbalance_ratio=0.1, imbalance_classes=None):
+        super().__init__()
+        self.args = args
+        self.use_path = True
+
+        if args["model_name"] == "coda_prompt":
+            self.train_trsf = build_transform_coda_prompt(True, args)
+            self.test_trsf = build_transform_coda_prompt(False, args)
+        else:
+            self.train_trsf = build_transform(True, args)
+            self.test_trsf = build_transform(False, args)
+        self.common_trsf = [
+            # transforms.ToTensor(),
+        ]
+
+        self.class_order = np.arange(200).tolist()
+        self.imbalance_ratio = imbalance_ratio
+        self.imbalance_classes = imbalance_classes
+
+    def download_data(self):
+        train_dir = "../data/imagenet-r/train/"
+        test_dir = "../data/imagenet-r/test/"
+
+        train_dset = datasets.ImageFolder(train_dir)
+        test_dset = datasets.ImageFolder(test_dir)
+
+        self.train_data, self.train_targets = split_images_labels(train_dset.imgs)
+        self.test_data, self.test_targets = split_images_labels(test_dset.imgs)
+
+        # Apply class imbalance to the training data
+        self.apply_class_imbalance()
+
+    def apply_class_imbalance(self):
+        if self.imbalance_classes is None:
+            # Select a subset of classes to imbalance
+            num_classes = len(set(self.train_targets))
+            num_imbalance_classes = num_classes // 4  # Example: Imbalance 25% of classes
+            self.imbalance_classes = np.random.choice(
+                np.arange(num_classes), num_imbalance_classes, replace=False
+            )
+
+        # Create new training data with imbalance
+        new_train_data = []
+        new_train_targets = []
+
+        class_counts = Counter(self.train_targets)
+        for cls in class_counts.keys():
+            cls_indices = np.where(np.array(self.train_targets) == cls)[0]
+            if cls in self.imbalance_classes:
+                # Reduce the number of samples for this class
+                reduced_indices = np.random.choice(
+                    cls_indices, int(len(cls_indices) * self.imbalance_ratio), replace=False
+                )
+                new_train_data.extend(np.array(self.train_data)[reduced_indices].tolist())
+                new_train_targets.extend(np.array(self.train_targets)[reduced_indices].tolist())
+            else:
+                # Keep all samples for other classes
+                new_train_data.extend(np.array(self.train_data)[cls_indices].tolist())
+                new_train_targets.extend(np.array(self.train_targets)[cls_indices].tolist())
+
+        self.train_data = new_train_data
+        self.train_targets = new_train_targets
 
 class iImageNetA(iData):
     use_path = True
