@@ -146,7 +146,79 @@ class iCIFAR224(iData):
         self.test_data, self.test_targets = test_dataset.data, np.array(
             test_dataset.targets
         )
+        
+class iCIFAR224_imbalanced(iData):
+    def __init__(self, args, imbalance_ratio=0.1, imbalance_classes=None):
+        super().__init__()
+        self.args = args
+        self.use_path = True
 
+        if args["model_name"] == "coda_prompt":
+            self.train_trsf = build_transform_coda_prompt(True, args)
+            self.test_trsf = build_transform_coda_prompt(False, args)
+        else:
+            self.train_trsf = build_transform(True, args)
+            self.test_trsf = build_transform(False, args)
+        self.common_trsf = [
+            # transforms.ToTensor(),
+        ]
+
+        self.class_order = np.arange(100).tolist()
+        self.imbalance_ratio = imbalance_ratio
+        self.imbalance_classes = imbalance_classes
+
+    def download_data(self):
+        train_dataset = datasets.cifar.CIFAR100("../data", train=True, download=True)
+        test_dataset = datasets.cifar.CIFAR100("../data", train=False, download=True)
+        train_dir = "../data/cifar-100-python/train/"
+        test_dir = "../data/cifar-100-python/test/"
+
+        train_dset = datasets.ImageFolder(train_dir)
+        test_dset = datasets.ImageFolder(test_dir)
+
+        self.train_data, self.train_targets = split_images_labels(train_dset.imgs)
+        self.test_data, self.test_targets = split_images_labels(test_dset.imgs)
+
+        # Apply class imbalance to the training data
+        self.apply_class_imbalance()
+
+    def apply_class_imbalance(self):
+        if self.imbalance_classes is None:
+            # Select a subset of classes to imbalance
+            num_classes = len(set(self.train_targets))
+            num_imbalance_classes = num_classes // 4  # Example: Imbalance 25% of classes
+            self.imbalance_classes = np.random.choice(
+                np.arange(num_classes), num_imbalance_classes, replace=False
+            )
+    
+        # Create new training data with imbalance
+        new_train_data = []
+        new_train_targets = []
+    
+        class_counts = Counter(self.train_targets)
+        for cls in class_counts.keys():
+            cls_indices = np.where(np.array(self.train_targets) == cls)[0]
+            if cls in self.imbalance_classes:
+                # Reduce the number of samples for this class
+                reduced_indices = np.random.choice(
+                    cls_indices, int(len(cls_indices) * self.imbalance_ratio), replace=False
+                )
+                new_train_data.extend(np.array(self.train_data)[reduced_indices])
+                new_train_targets.extend(np.array(self.train_targets)[reduced_indices])
+            else:
+                # Keep all samples for other classes
+                new_train_data.extend(np.array(self.train_data)[cls_indices])
+                new_train_targets.extend(np.array(self.train_targets)[cls_indices])
+    
+        # Ensure train_data and train_targets are NumPy arrays
+        self.train_data = np.array(new_train_data)
+        self.train_targets = np.array(new_train_targets)
+    
+        # Count and print the number of samples per class after applying imbalance
+        new_class_counts = Counter(self.train_targets)
+        print("\nNumber of samples per class in the training set AFTER imbalance:")
+        for cls, count in new_class_counts.items():
+            print(f"Class {cls}: {count} samples")
 class iImageNet1000(iData):
     use_path = True
     train_trsf = [
@@ -350,6 +422,78 @@ class CUB(iData):
         self.train_data, self.train_targets = split_images_labels(train_dset.imgs)
         self.test_data, self.test_targets = split_images_labels(test_dset.imgs)
 
+class CUB_imbalanced(iData):
+    def __init__(self, args, imbalance_ratio=0.1, imbalance_classes=None):
+        super().__init__()
+        self.args = args
+        self.use_path = True
+
+        if args["model_name"] == "coda_prompt":
+            self.train_trsf = build_transform_coda_prompt(True, args)
+            self.test_trsf = build_transform_coda_prompt(False, args)
+        else:
+            self.train_trsf = build_transform(True, args)
+            self.test_trsf = build_transform(False, args)
+        self.common_trsf = [
+            # transforms.ToTensor(),
+        ]
+
+        self.class_order = np.arange(200).tolist()
+        self.imbalance_ratio = imbalance_ratio
+        self.imbalance_classes = imbalance_classes
+
+    def download_data(self):
+        train_dir = "../data/cub/train/"
+        test_dir = "../data/cub/test/"
+
+        train_dset = datasets.ImageFolder(train_dir)
+        test_dset = datasets.ImageFolder(test_dir)
+
+        self.train_data, self.train_targets = split_images_labels(train_dset.imgs)
+        self.test_data, self.test_targets = split_images_labels(test_dset.imgs)
+
+        # Apply class imbalance to the training data
+        self.apply_class_imbalance()
+
+    def apply_class_imbalance(self):
+        if self.imbalance_classes is None:
+            # Select a subset of classes to imbalance
+            num_classes = len(set(self.train_targets))
+            num_imbalance_classes = num_classes // 4  # Example: Imbalance 25% of classes
+            self.imbalance_classes = np.random.choice(
+                np.arange(num_classes), num_imbalance_classes, replace=False
+            )
+    
+        # Create new training data with imbalance
+        new_train_data = []
+        new_train_targets = []
+    
+        class_counts = Counter(self.train_targets)
+        for cls in class_counts.keys():
+            cls_indices = np.where(np.array(self.train_targets) == cls)[0]
+            if cls in self.imbalance_classes:
+                # Reduce the number of samples for this class
+                reduced_indices = np.random.choice(
+                    cls_indices, int(len(cls_indices) * self.imbalance_ratio), replace=False
+                )
+                new_train_data.extend(np.array(self.train_data)[reduced_indices])
+                new_train_targets.extend(np.array(self.train_targets)[reduced_indices])
+            else:
+                # Keep all samples for other classes
+                new_train_data.extend(np.array(self.train_data)[cls_indices])
+                new_train_targets.extend(np.array(self.train_targets)[cls_indices])
+    
+        # Ensure train_data and train_targets are NumPy arrays
+        self.train_data = np.array(new_train_data)
+        self.train_targets = np.array(new_train_targets)
+    
+        # Count and print the number of samples per class after applying imbalance
+        new_class_counts = Counter(self.train_targets)
+        print("\nNumber of samples per class in the training set AFTER imbalance:")
+        for cls, count in new_class_counts.items():
+            print(f"Class {cls}: {count} samples")
+
+
 
 class objectnet(iData):
     use_path = True
@@ -370,6 +514,78 @@ class objectnet(iData):
 
         self.train_data, self.train_targets = split_images_labels(train_dset.imgs)
         self.test_data, self.test_targets = split_images_labels(test_dset.imgs)
+
+class objectnet_imbalanced(iData):
+    def __init__(self, args, imbalance_ratio=0.1, imbalance_classes=None):
+        super().__init__()
+        self.args = args
+        self.use_path = True
+
+        if args["model_name"] == "coda_prompt":
+            self.train_trsf = build_transform_coda_prompt(True, args)
+            self.test_trsf = build_transform_coda_prompt(False, args)
+        else:
+            self.train_trsf = build_transform(True, args)
+            self.test_trsf = build_transform(False, args)
+        self.common_trsf = [
+            # transforms.ToTensor(),
+        ]
+
+        self.class_order = np.arange(200).tolist()
+        self.imbalance_ratio = imbalance_ratio
+        self.imbalance_classes = imbalance_classes
+
+    def download_data(self):
+        train_dir = "../data/objectnet/train/"
+        test_dir = "../data/objectnet/test/"
+
+        train_dset = datasets.ImageFolder(train_dir)
+        test_dset = datasets.ImageFolder(test_dir)
+
+        self.train_data, self.train_targets = split_images_labels(train_dset.imgs)
+        self.test_data, self.test_targets = split_images_labels(test_dset.imgs)
+
+        # Apply class imbalance to the training data
+        self.apply_class_imbalance()
+
+    def apply_class_imbalance(self):
+        if self.imbalance_classes is None:
+            # Select a subset of classes to imbalance
+            num_classes = len(set(self.train_targets))
+            num_imbalance_classes = num_classes // 4  # Example: Imbalance 25% of classes
+            self.imbalance_classes = np.random.choice(
+                np.arange(num_classes), num_imbalance_classes, replace=False
+            )
+    
+        # Create new training data with imbalance
+        new_train_data = []
+        new_train_targets = []
+    
+        class_counts = Counter(self.train_targets)
+        for cls in class_counts.keys():
+            cls_indices = np.where(np.array(self.train_targets) == cls)[0]
+            if cls in self.imbalance_classes:
+                # Reduce the number of samples for this class
+                reduced_indices = np.random.choice(
+                    cls_indices, int(len(cls_indices) * self.imbalance_ratio), replace=False
+                )
+                new_train_data.extend(np.array(self.train_data)[reduced_indices])
+                new_train_targets.extend(np.array(self.train_targets)[reduced_indices])
+            else:
+                # Keep all samples for other classes
+                new_train_data.extend(np.array(self.train_data)[cls_indices])
+                new_train_targets.extend(np.array(self.train_targets)[cls_indices])
+    
+        # Ensure train_data and train_targets are NumPy arrays
+        self.train_data = np.array(new_train_data)
+        self.train_targets = np.array(new_train_targets)
+    
+        # Count and print the number of samples per class after applying imbalance
+        new_class_counts = Counter(self.train_targets)
+        print("\nNumber of samples per class in the training set AFTER imbalance:")
+        for cls, count in new_class_counts.items():
+            print(f"Class {cls}: {count} samples")
+
 
 
 class omnibenchmark(iData):
@@ -392,7 +608,76 @@ class omnibenchmark(iData):
         self.train_data, self.train_targets = split_images_labels(train_dset.imgs)
         self.test_data, self.test_targets = split_images_labels(test_dset.imgs)
 
+class omnibenchmark_imbalanced(iData):
+    def __init__(self, args, imbalance_ratio=0.1, imbalance_classes=None):
+        super().__init__()
+        self.args = args
+        self.use_path = True
 
+        if args["model_name"] == "coda_prompt":
+            self.train_trsf = build_transform_coda_prompt(True, args)
+            self.test_trsf = build_transform_coda_prompt(False, args)
+        else:
+            self.train_trsf = build_transform(True, args)
+            self.test_trsf = build_transform(False, args)
+        self.common_trsf = [
+            # transforms.ToTensor(),
+        ]
+
+        self.class_order = np.arange(300).tolist()
+        self.imbalance_ratio = imbalance_ratio
+        self.imbalance_classes = imbalance_classes
+
+    def download_data(self):
+        train_dir = "../data/imagenet-r/train/"
+        test_dir = "../data/imagenet-r/test/"
+
+        train_dset = datasets.ImageFolder(train_dir)
+        test_dset = datasets.ImageFolder(test_dir)
+
+        self.train_data, self.train_targets = split_images_labels(train_dset.imgs)
+        self.test_data, self.test_targets = split_images_labels(test_dset.imgs)
+
+        # Apply class imbalance to the training data
+        self.apply_class_imbalance()
+
+    def apply_class_imbalance(self):
+        if self.imbalance_classes is None:
+            # Select a subset of classes to imbalance
+            num_classes = len(set(self.train_targets))
+            num_imbalance_classes = num_classes // 4  # Example: Imbalance 25% of classes
+            self.imbalance_classes = np.random.choice(
+                np.arange(num_classes), num_imbalance_classes, replace=False
+            )
+    
+        # Create new training data with imbalance
+        new_train_data = []
+        new_train_targets = []
+    
+        class_counts = Counter(self.train_targets)
+        for cls in class_counts.keys():
+            cls_indices = np.where(np.array(self.train_targets) == cls)[0]
+            if cls in self.imbalance_classes:
+                # Reduce the number of samples for this class
+                reduced_indices = np.random.choice(
+                    cls_indices, int(len(cls_indices) * self.imbalance_ratio), replace=False
+                )
+                new_train_data.extend(np.array(self.train_data)[reduced_indices])
+                new_train_targets.extend(np.array(self.train_targets)[reduced_indices])
+            else:
+                # Keep all samples for other classes
+                new_train_data.extend(np.array(self.train_data)[cls_indices])
+                new_train_targets.extend(np.array(self.train_targets)[cls_indices])
+    
+        # Ensure train_data and train_targets are NumPy arrays
+        self.train_data = np.array(new_train_data)
+        self.train_targets = np.array(new_train_targets)
+    
+        # Count and print the number of samples per class after applying imbalance
+        new_class_counts = Counter(self.train_targets)
+        print("\nNumber of samples per class in the training set AFTER imbalance:")
+        for cls, count in new_class_counts.items():
+            print(f"Class {cls}: {count} samples")
 
 class vtab(iData):
     use_path = True
@@ -416,3 +701,75 @@ class vtab(iData):
 
         self.train_data, self.train_targets = split_images_labels(train_dset.imgs)
         self.test_data, self.test_targets = split_images_labels(test_dset.imgs)
+
+
+class vtab_imbalanced(iData):
+    def __init__(self, args, imbalance_ratio=0.1, imbalance_classes=None):
+        super().__init__()
+        self.args = args
+        self.use_path = True
+
+        if args["model_name"] == "coda_prompt":
+            self.train_trsf = build_transform_coda_prompt(True, args)
+            self.test_trsf = build_transform_coda_prompt(False, args)
+        else:
+            self.train_trsf = build_transform(True, args)
+            self.test_trsf = build_transform(False, args)
+        self.common_trsf = [
+            # transforms.ToTensor(),
+        ]
+
+        self.class_order = np.arange(50).tolist()
+        self.imbalance_ratio = imbalance_ratio
+        self.imbalance_classes = imbalance_classes
+
+    def download_data(self):
+        train_dir = "../data/vtab/train/"
+        test_dir = "../data/vtab/test/"
+
+        train_dset = datasets.ImageFolder(train_dir)
+        test_dset = datasets.ImageFolder(test_dir)
+
+        self.train_data, self.train_targets = split_images_labels(train_dset.imgs)
+        self.test_data, self.test_targets = split_images_labels(test_dset.imgs)
+
+        # Apply class imbalance to the training data
+        self.apply_class_imbalance()
+
+    def apply_class_imbalance(self):
+        if self.imbalance_classes is None:
+            # Select a subset of classes to imbalance
+            num_classes = len(set(self.train_targets))
+            num_imbalance_classes = num_classes // 4  # Example: Imbalance 25% of classes
+            self.imbalance_classes = np.random.choice(
+                np.arange(num_classes), num_imbalance_classes, replace=False
+            )
+    
+        # Create new training data with imbalance
+        new_train_data = []
+        new_train_targets = []
+    
+        class_counts = Counter(self.train_targets)
+        for cls in class_counts.keys():
+            cls_indices = np.where(np.array(self.train_targets) == cls)[0]
+            if cls in self.imbalance_classes:
+                # Reduce the number of samples for this class
+                reduced_indices = np.random.choice(
+                    cls_indices, int(len(cls_indices) * self.imbalance_ratio), replace=False
+                )
+                new_train_data.extend(np.array(self.train_data)[reduced_indices])
+                new_train_targets.extend(np.array(self.train_targets)[reduced_indices])
+            else:
+                # Keep all samples for other classes
+                new_train_data.extend(np.array(self.train_data)[cls_indices])
+                new_train_targets.extend(np.array(self.train_targets)[cls_indices])
+    
+        # Ensure train_data and train_targets are NumPy arrays
+        self.train_data = np.array(new_train_data)
+        self.train_targets = np.array(new_train_targets)
+    
+        # Count and print the number of samples per class after applying imbalance
+        new_class_counts = Counter(self.train_targets)
+        print("\nNumber of samples per class in the training set AFTER imbalance:")
+        for cls, count in new_class_counts.items():
+            print(f"Class {cls}: {count} samples")
