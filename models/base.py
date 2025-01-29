@@ -6,6 +6,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 from utils.toolkit import tensor2numpy, accuracy
 from scipy.spatial.distance import cdist
+from sklearn.metrics import f1_score, matthews_corrcoef, cohen_kappa_score, balanced_accuracy_score
 
 EPSILON = 1e-8
 batch_size = 64
@@ -100,8 +101,23 @@ class BaseLearner(object):
     def after_task(self):
         pass
 
+    # def _evaluate(self, y_pred, y_true):
+    #     ret = {}
+    #     grouped = accuracy(y_pred.T[0], y_true, self._known_classes, self.args["init_cls"], self.args["increment"])
+    #     ret["grouped"] = grouped
+    #     ret["top1"] = grouped["total"]
+    #     ret["top{}".format(self.topk)] = np.around(
+    #         (y_pred.T == np.tile(y_true, (self.topk, 1))).sum() * 100 / len(y_true),
+    #         decimals=2,
+    #     )
+
+    #     return ret
+
+
     def _evaluate(self, y_pred, y_true):
         ret = {}
+    
+        # Compute accuracy metrics
         grouped = accuracy(y_pred.T[0], y_true, self._known_classes, self.args["init_cls"], self.args["increment"])
         ret["grouped"] = grouped
         ret["top1"] = grouped["total"]
@@ -109,7 +125,13 @@ class BaseLearner(object):
             (y_pred.T == np.tile(y_true, (self.topk, 1))).sum() * 100 / len(y_true),
             decimals=2,
         )
-
+    
+        # Additional Metrics
+        ret["f1_macro"] = np.around(f1_score(y_true, y_pred.T[0], average="macro"), decimals=4)
+        ret["mcc"] = np.around(matthews_corrcoef(y_true, y_pred.T[0]), decimals=4)
+        ret["kappa"] = np.around(cohen_kappa_score(y_true, y_pred.T[0]), decimals=4)
+        ret["balanced_acc"] = np.around(balanced_accuracy_score(y_true, y_pred.T[0]), decimals=4)
+    
         return ret
 
     def eval_task(self):
