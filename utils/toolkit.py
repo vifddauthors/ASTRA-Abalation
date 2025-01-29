@@ -79,26 +79,26 @@ def f1_score_custom(y_pred, y_true, nb_old, init_cls=10, increment=10):
     all_f1 = {}
 
     # Total F1 score
-    all_f1["total"] = np.around(f1_score(y_true, y_pred, average='binary'), decimals=2)
+    all_f1["total"] = np.around(f1_score(y_true, y_pred, average='weighted'), decimals=2)
 
     # Grouped F1 score for initial classes
     idxes = np.where(np.logical_and(y_true >= 0, y_true < init_cls))[0]
     label = "{}-{}".format(str(0).rjust(2, "0"), str(init_cls - 1).rjust(2, "0"))
-    all_f1[label] = np.around(f1_score(y_true[idxes], y_pred[idxes], average='binary'), decimals=2)
+    all_f1[label] = np.around(f1_score(y_true[idxes], y_pred[idxes], average='weighted'), decimals=2)
 
     # For incremental classes
     for class_id in range(init_cls, np.max(y_true), increment):
         idxes = np.where(np.logical_and(y_true >= class_id, y_true < class_id + increment))[0]
         label = "{}-{}".format(str(class_id).rjust(2, "0"), str(class_id + increment - 1).rjust(2, "0"))
-        all_f1[label] = np.around(f1_score(y_true[idxes], y_pred[idxes], average='binary'), decimals=2)
+        all_f1[label] = np.around(f1_score(y_true[idxes], y_pred[idxes], average='weighted'), decimals=2)
 
     # Old F1 score
     idxes = np.where(y_true < nb_old)[0]
-    all_f1["old"] = 0 if len(idxes) == 0 else np.around(f1_score(y_true[idxes], y_pred[idxes], average='binary'), decimals=2)
+    all_f1["old"] = 0 if len(idxes) == 0 else np.around(f1_score(y_true[idxes], y_pred[idxes], average='weighted'), decimals=2)
 
     # New F1 score
     idxes = np.where(y_true >= nb_old)[0]
-    all_f1["new"] = np.around(f1_score(y_true[idxes], y_pred[idxes], average='binary'), decimals=2)
+    all_f1["new"] = np.around(f1_score(y_true[idxes], y_pred[idxes], average='weighted'), decimals=2)
 
     return all_f1
 
