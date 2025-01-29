@@ -166,9 +166,6 @@ def kappa_score_custom(y_pred, y_true, nb_old, init_cls=10, increment=10):
 
 from sklearn.metrics import confusion_matrix
 
-from sklearn.metrics import confusion_matrix
-import numpy as np
-
 def balanced_accuracy_custom(y_pred, y_true, nb_old, init_cls=10, increment=10):
     assert len(y_pred) == len(y_true), "Data length error."
     all_balanced_acc = {}
