@@ -169,7 +169,7 @@ from sklearn.metrics import confusion_matrix
 def balanced_accuracy_custom(y_pred, y_true, nb_old, init_cls=10, increment=10):
     assert len(y_pred) == len(y_true), "Data length error."
     all_balanced_acc = {}
-
+    print('using balanced accuracy.........')
     # Total Balanced Accuracy
     cm = confusion_matrix(y_true, y_pred)
     tp = np.diag(cm)
