@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
-from utils.toolkit import tensor2numpy, accuracy, f1_score_custom, mcc_score_custom
+from utils.toolkit import tensor2numpy, accuracy, f1_score_custom, mcc_score_custom,kappa_score_custom
 from scipy.spatial.distance import cdist
 from sklearn.metrics import f1_score, matthews_corrcoef, cohen_kappa_score, balanced_accuracy_score
 
