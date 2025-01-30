@@ -633,10 +633,6 @@ class Learner(BaseLearner):
         orig_y_pred = []
         
         # Instantiate the self-refinement transformer
-        self_refiner = SelfRefinementTransformer(
-            feature_dim=self._network.backbone.out_dim,
-            num_adapters=self._cur_task + 1
-        ).to(self._device)
     
         for _, (_, inputs, targets) in enumerate(loader):
             inputs = inputs.to(self._device)
@@ -656,13 +652,12 @@ class Learner(BaseLearner):
                     all_features[:, t_id, :] = t_features
     
                 # Step 3: Use the Transformer model to refine features in one pass
-                # refined_features = self_refiner(all_features)  # [batch_size, feature_dim]]
+                refined_features = self.self_refiner(all_features)  # [batch_size, feature_dim]]
 
-                refined_features = all_features
+                # refined_features = all_features
     
                 # Step 4: Get final logits using the refined features
                 final_logits = self._network.backbone(refined_features, fc_only=True)["logits"][:, :self._total_classes]
-                final_logits = torch.cat(final_logits, dim=0).to(self._device)
                 
                 # Step 5: Use ensemble or final logits based on ensemble flag
                 if self.ensemble:
