@@ -657,10 +657,12 @@ class Learner(BaseLearner):
     
                 # Step 3: Use the Transformer model to refine features in one pass
                 # refined_features = self_refiner(all_features)  # [batch_size, feature_dim]]
+
                 refined_features = all_features
     
                 # Step 4: Get final logits using the refined features
                 final_logits = self._network.backbone(refined_features, fc_only=True)["logits"][:, :self._total_classes]
+                final_logits = torch.cat(final_logits, dim=0).to(self._device)
                 
                 # Step 5: Use ensemble or final logits based on ensemble flag
                 if self.ensemble:
