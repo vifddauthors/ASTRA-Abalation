@@ -14,6 +14,38 @@ from torch.distributions.multivariate_normal import MultivariateNormal
 
 # tune the model at first session with vpt, and then conduct simple shot.
 num_workers = 8
+class SelfRefinementTransformer(nn.Module):
+    def __init__(self, feature_dim, num_adapters, num_heads=4, num_layers=2):
+        super().__init__()
+        
+        # Transformer encoder layer
+        encoder_layer = nn.TransformerEncoderLayer(d_model=feature_dim, nhead=num_heads, batch_first=True)
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        
+        # Fully connected layer to extract refined features
+        self.fc = nn.Linear(feature_dim, feature_dim)
+
+    def forward(self, all_features):
+        """
+        Args:
+            all_features: Tensor of shape [batch_size, num_adapters, feature_dim]
+                          Contains features extracted from each adapter.
+
+        Returns:
+            refined_features: Tensor of shape [batch_size, feature_dim]
+                              Refined feature representation.
+        """
+        # Pass through transformer to learn refined representation
+        refined_features = self.transformer(all_features)  # [batch_size, num_adapters, feature_dim]
+
+        # Select the first token as the refined feature representation
+        refined_features = refined_features[:, 0, :]  # [batch_size, feature_dim]
+
+        # Apply a fully connected layer for feature enhancement
+        return self.fc(refined_features)
+
+
+
 
 class Learner(BaseLearner):
     def __init__(self, args):
@@ -31,7 +63,10 @@ class Learner(BaseLearner):
         self.min_lr = args["min_lr"] if args["min_lr"] is not None else 1e-8
         self.args = args
         self.ensemble = args["ensemble"]
-
+        self.self_refiner = SelfRefinementTransformer(
+            feature_dim=self._network.backbone.out_dim,
+            num_adapters=1  # This can be dynamically adjusted based on the task
+        ).to(self._device)
         for n, p in self._network.backbone.named_parameters():
             if 'adapter' not in n and 'head' not in n:
                 p.requires_grad = False
@@ -170,7 +205,94 @@ class Learner(BaseLearner):
             scheduler = None
 
         return scheduler
+        
+    def _init_train(self, train_loader, test_loader, optimizer, scheduler):
+        prog_bar = tqdm(range(self.args['tuned_epoch']))
+        
+        for _, epoch in enumerate(prog_bar):
+            self._network.backbone.train()
 
+            losses = 0.0
+            correct, total = 0, 0
+
+            # Initialize class-specific loss tracker
+            class_losses = torch.zeros(self._total_classes, device=self._device)
+            class_counts = torch.zeros(self._total_classes, device=self._device)
+
+            for i, (_, inputs, targets) in enumerate(train_loader):
+                inputs, targets = inputs.to(self._device), targets.to(self._device)
+
+                # Forward pass through the backbone network (extract adapter features)
+                output = self._network(inputs, adapter_id=self._cur_task, train=True)
+                logits = output["logits"][:, :self._total_classes]
+                logits[:, :self._known_classes] = float('-inf')
+
+                # Compute cross-entropy loss
+                loss = F.cross_entropy(logits, targets.long(), reduction='none')  # Per-sample loss
+                loss += self.orth_loss(output['pre_logits'], targets)
+
+                optimizer.zero_grad()
+                loss.mean().backward()  # Mean loss for optimization
+                optimizer.step()
+
+                # Update EMA for adapters if momentum > 0
+                if self.args["adapter_momentum"] > 0:
+                    self._network.backbone.adapter_merge()
+
+                losses += loss.sum().item()  # Sum loss over batch
+
+                # Track class-specific losses
+                for class_id in range(self._total_classes):
+                    class_mask = (targets == class_id)  # Mask for current class
+                    class_counts[class_id] += class_mask.sum()
+                    class_losses[class_id] += loss[class_mask].sum()  # Add losses for the class
+
+                # Compute training accuracy
+                _, preds = torch.max(logits, dim=1)
+                correct += preds.eq(targets).cpu().sum()
+                total += len(targets)
+
+                # Refining the features using the shared Transformer
+                all_features = torch.zeros(len(inputs), self._cur_task + 1, self._network.backbone.out_dim, device=self._device)
+                for t_id in range(self._cur_task + 1):
+                    t_features = self._network.backbone(inputs, adapter_id=t_id, train=False)["features"]
+                    all_features[:, t_id, :] = t_features
+
+                # Pass through the self-refinement transformer to get refined features
+                refined_features = self.self_refiner(all_features)
+
+                # Pass the refined features to the classifier
+                refined_logits = self._network.backbone(refined_features, fc_only=True)["logits"][:, :self._total_classes]
+
+                # Update the logits (after refining) for loss calculation
+                refined_loss = F.cross_entropy(refined_logits, targets.long())
+                refined_loss.backward()
+                optimizer.step()
+
+                losses += refined_loss.item()
+
+            # Normalize class losses (avoid division by zero)
+            class_losses /= (class_counts + 1e-8)
+
+            if scheduler:
+                scheduler.step()
+
+            train_acc = np.around(tensor2numpy(correct) * 100 / total, decimals=2)
+
+            # Pass normalized class losses to the network
+            self._network.backbone.class_losses = class_losses
+
+            # Logging progress
+            info = "Task {}, Epoch {}/{} => Loss {:.3f}, Train_accy {:.2f}".format(
+                self._cur_task,
+                epoch + 1,
+                self.args['tuned_epoch'],
+                losses / len(train_loader),
+                train_acc,
+            )
+            prog_bar.set_description(info)
+
+        logging.info(info)
     # def _init_train(self, train_loader, test_loader, optimizer, scheduler):
     #     prog_bar = tqdm(range(self.args['tuned_epoch']))
     #     for _, epoch in enumerate(prog_bar):
@@ -217,72 +339,72 @@ class Learner(BaseLearner):
 
     #     logging.info(info)
 
-    def _init_train(self, train_loader, test_loader, optimizer, scheduler):
-        prog_bar = tqdm(range(self.args['tuned_epoch']))
-        for _, epoch in enumerate(prog_bar):
-            self._network.backbone.train()
+    # def _init_train(self, train_loader, test_loader, optimizer, scheduler):
+    #     prog_bar = tqdm(range(self.args['tuned_epoch']))
+    #     for _, epoch in enumerate(prog_bar):
+    #         self._network.backbone.train()
     
-            losses = 0.0
-            correct, total = 0, 0
+    #         losses = 0.0
+    #         correct, total = 0, 0
     
-            # Initialize class-specific loss tracker
-            class_losses = torch.zeros(self._total_classes, device=self._device)
-            class_counts = torch.zeros(self._total_classes, device=self._device)
+    #         # Initialize class-specific loss tracker
+    #         class_losses = torch.zeros(self._total_classes, device=self._device)
+    #         class_counts = torch.zeros(self._total_classes, device=self._device)
     
-            for i, (_, inputs, targets) in enumerate(train_loader):
-                inputs, targets = inputs.to(self._device), targets.to(self._device)
+    #         for i, (_, inputs, targets) in enumerate(train_loader):
+    #             inputs, targets = inputs.to(self._device), targets.to(self._device)
     
-                # Forward pass
-                output = self._network(inputs, adapter_id=self._cur_task, train=True)
-                logits = output["logits"][:, :self._total_classes]
-                logits[:, :self._known_classes] = float('-inf')
+    #             # Forward pass
+    #             output = self._network(inputs, adapter_id=self._cur_task, train=True)
+    #             logits = output["logits"][:, :self._total_classes]
+    #             logits[:, :self._known_classes] = float('-inf')
     
-                # Compute cross-entropy loss
-                loss = F.cross_entropy(logits, targets.long(), reduction='none')  # Per-sample loss
-                loss += self.orth_loss(output['pre_logits'], targets)
+    #             # Compute cross-entropy loss
+    #             loss = F.cross_entropy(logits, targets.long(), reduction='none')  # Per-sample loss
+    #             loss += self.orth_loss(output['pre_logits'], targets)
     
-                optimizer.zero_grad()
-                loss.mean().backward()  # Mean loss for optimization
-                optimizer.step()
+    #             optimizer.zero_grad()
+    #             loss.mean().backward()  # Mean loss for optimization
+    #             optimizer.step()
     
-                # Update EMA for adapters if momentum > 0
-                if self.args["adapter_momentum"] > 0:
-                    self._network.backbone.adapter_merge()
+    #             # Update EMA for adapters if momentum > 0
+    #             if self.args["adapter_momentum"] > 0:
+    #                 self._network.backbone.adapter_merge()
     
-                losses += loss.sum().item()  # Sum loss over batch
+    #             losses += loss.sum().item()  # Sum loss over batch
     
-                # Track class-specific losses
-                for class_id in range(self._total_classes):
-                    class_mask = (targets == class_id)  # Mask for current class
-                    class_counts[class_id] += class_mask.sum()
-                    class_losses[class_id] += loss[class_mask].sum()  # Add losses for the class
+    #             # Track class-specific losses
+    #             for class_id in range(self._total_classes):
+    #                 class_mask = (targets == class_id)  # Mask for current class
+    #                 class_counts[class_id] += class_mask.sum()
+    #                 class_losses[class_id] += loss[class_mask].sum()  # Add losses for the class
     
-                # Compute training accuracy
-                _, preds = torch.max(logits, dim=1)
-                correct += preds.eq(targets).cpu().sum()
-                total += len(targets)
+    #             # Compute training accuracy
+    #             _, preds = torch.max(logits, dim=1)
+    #             correct += preds.eq(targets).cpu().sum()
+    #             total += len(targets)
     
-            # Normalize class losses (avoid division by zero)
-            class_losses /= (class_counts + 1e-8)
+    #         # Normalize class losses (avoid division by zero)
+    #         class_losses /= (class_counts + 1e-8)
     
-            if scheduler:
-                scheduler.step()
-            train_acc = np.around(tensor2numpy(correct) * 100 / total, decimals=2)
+    #         if scheduler:
+    #             scheduler.step()
+    #         train_acc = np.around(tensor2numpy(correct) * 100 / total, decimals=2)
     
-            # Pass normalized class losses to the network
-            self._network.backbone.class_losses = class_losses
+    #         # Pass normalized class losses to the network
+    #         self._network.backbone.class_losses = class_losses
     
-            # Logging progress
-            info = "Task {}, Epoch {}/{} => Loss {:.3f}, Train_accy {:.2f}".format(
-                self._cur_task,
-                epoch + 1,
-                self.args['tuned_epoch'],
-                losses / len(train_loader),
-                train_acc,
-            )
-            prog_bar.set_description(info)
+    #         # Logging progress
+    #         info = "Task {}, Epoch {}/{} => Loss {:.3f}, Train_accy {:.2f}".format(
+    #             self._cur_task,
+    #             epoch + 1,
+    #             self.args['tuned_epoch'],
+    #             losses / len(train_loader),
+    #             train_acc,
+    #         )
+    #         prog_bar.set_description(info)
     
-        logging.info(info)
+    #     logging.info(info)
 
 
     @torch.no_grad()
