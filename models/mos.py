@@ -67,6 +67,7 @@ class Learner(BaseLearner):
             feature_dim=self._network.backbone.out_dim,
             num_adapters=1  # This can be dynamically adjusted based on the task
         ).to(self._device)
+        self.self_refiner_optimizer = torch.optim.Adam(self.self_refiner.parameters())
         for n, p in self._network.backbone.named_parameters():
             if 'adapter' not in n and 'head' not in n:
                 p.requires_grad = False
@@ -266,8 +267,9 @@ class Learner(BaseLearner):
 
                 # Update the logits (after refining) for loss calculation
                 refined_loss = F.cross_entropy(refined_logits, targets.long())
+                self.self_refiner_optimizer.zero_grad()
                 refined_loss.backward()
-                optimizer.step()
+                self.self_refiner_optimizer.step()
 
                 losses += refined_loss.item()
 
