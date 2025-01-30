@@ -63,10 +63,7 @@ class Learner(BaseLearner):
         self.min_lr = args["min_lr"] if args["min_lr"] is not None else 1e-8
         self.args = args
         self.ensemble = args["ensemble"]
-        self.self_refiner = SelfRefinementTransformer(
-            feature_dim=self._network.backbone.out_dim,
-            num_adapters=1  # This can be dynamically adjusted based on the task
-        ).to(self._device)
+
         
         for n, p in self._network.backbone.named_parameters():
             if 'adapter' not in n and 'head' not in n:
@@ -207,94 +204,7 @@ class Learner(BaseLearner):
 
         return scheduler
         
-    def _init_train(self, train_loader, test_loader, optimizer, scheduler):
-        prog_bar = tqdm(range(self.args['tuned_epoch']))
-        self_refiner_optimizer = torch.optim.Adam(self.self_refiner.parameters())
-        for _, epoch in enumerate(prog_bar):
-            self._network.backbone.train()
 
-            losses = 0.0
-            correct, total = 0, 0
-
-            # Initialize class-specific loss tracker
-            class_losses = torch.zeros(self._total_classes, device=self._device)
-            class_counts = torch.zeros(self._total_classes, device=self._device)
-
-            for i, (_, inputs, targets) in enumerate(train_loader):
-                inputs, targets = inputs.to(self._device), targets.to(self._device)
-
-                # Forward pass through the backbone network (extract adapter features)
-                output = self._network(inputs, adapter_id=self._cur_task, train=True)
-                logits = output["logits"][:, :self._total_classes]
-                logits[:, :self._known_classes] = float('-inf')
-
-                # Compute cross-entropy loss
-                loss = F.cross_entropy(logits, targets.long(), reduction='none')  # Per-sample loss
-                loss += self.orth_loss(output['pre_logits'], targets)
-
-                optimizer.zero_grad()
-                loss.mean().backward()  # Mean loss for optimization
-                optimizer.step()
-
-                # Update EMA for adapters if momentum > 0
-                if self.args["adapter_momentum"] > 0:
-                    self._network.backbone.adapter_merge()
-
-                losses += loss.sum().item()  # Sum loss over batch
-
-                # Track class-specific losses
-                for class_id in range(self._total_classes):
-                    class_mask = (targets == class_id)  # Mask for current class
-                    class_counts[class_id] += class_mask.sum()
-                    class_losses[class_id] += loss[class_mask].sum()  # Add losses for the class
-
-                # Compute training accuracy
-                _, preds = torch.max(logits, dim=1)
-                correct += preds.eq(targets).cpu().sum()
-                total += len(targets)
-
-                # Refining the features using the shared Transformer
-                all_features = torch.zeros(len(inputs), self._cur_task + 1, self._network.backbone.out_dim, device=self._device)
-                for t_id in range(self._cur_task + 1):
-                    t_features = self._network.backbone(inputs, adapter_id=t_id, train=False)["features"]
-                    all_features[:, t_id, :] = t_features
-
-                # Pass through the self-refinement transformer to get refined features
-                refined_features = self.self_refiner(all_features)
-
-                # Pass the refined features to the classifier
-                refined_logits = self._network.backbone(refined_features, fc_only=True)["logits"][:, :self._total_classes]
-
-                # Update the logits (after refining) for loss calculation
-                refined_loss = F.cross_entropy(refined_logits, targets.long())
-                self_refiner_optimizer.zero_grad()
-                refined_loss.backward()
-                self_refiner_optimizer.step()
-
-                losses += refined_loss.item()
-
-            # Normalize class losses (avoid division by zero)
-            class_losses /= (class_counts + 1e-8)
-
-            if scheduler:
-                scheduler.step()
-
-            train_acc = np.around(tensor2numpy(correct) * 100 / total, decimals=2)
-
-            # Pass normalized class losses to the network
-            self._network.backbone.class_losses = class_losses
-
-            # Logging progress
-            info = "Task {}, Epoch {}/{} => Loss {:.3f}, Train_accy {:.2f}".format(
-                self._cur_task,
-                epoch + 1,
-                self.args['tuned_epoch'],
-                losses / len(train_loader),
-                train_acc,
-            )
-            prog_bar.set_description(info)
-
-        logging.info(info)
     # def _init_train(self, train_loader, test_loader, optimizer, scheduler):
     #     prog_bar = tqdm(range(self.args['tuned_epoch']))
     #     for _, epoch in enumerate(prog_bar):
@@ -341,72 +251,72 @@ class Learner(BaseLearner):
 
     #     logging.info(info)
 
-    # def _init_train(self, train_loader, test_loader, optimizer, scheduler):
-    #     prog_bar = tqdm(range(self.args['tuned_epoch']))
-    #     for _, epoch in enumerate(prog_bar):
-    #         self._network.backbone.train()
+    def _init_train(self, train_loader, test_loader, optimizer, scheduler):
+        prog_bar = tqdm(range(self.args['tuned_epoch']))
+        for _, epoch in enumerate(prog_bar):
+            self._network.backbone.train()
     
-    #         losses = 0.0
-    #         correct, total = 0, 0
+            losses = 0.0
+            correct, total = 0, 0
     
-    #         # Initialize class-specific loss tracker
-    #         class_losses = torch.zeros(self._total_classes, device=self._device)
-    #         class_counts = torch.zeros(self._total_classes, device=self._device)
+            # Initialize class-specific loss tracker
+            class_losses = torch.zeros(self._total_classes, device=self._device)
+            class_counts = torch.zeros(self._total_classes, device=self._device)
     
-    #         for i, (_, inputs, targets) in enumerate(train_loader):
-    #             inputs, targets = inputs.to(self._device), targets.to(self._device)
+            for i, (_, inputs, targets) in enumerate(train_loader):
+                inputs, targets = inputs.to(self._device), targets.to(self._device)
     
-    #             # Forward pass
-    #             output = self._network(inputs, adapter_id=self._cur_task, train=True)
-    #             logits = output["logits"][:, :self._total_classes]
-    #             logits[:, :self._known_classes] = float('-inf')
+                # Forward pass
+                output = self._network(inputs, adapter_id=self._cur_task, train=True)
+                logits = output["logits"][:, :self._total_classes]
+                logits[:, :self._known_classes] = float('-inf')
     
-    #             # Compute cross-entropy loss
-    #             loss = F.cross_entropy(logits, targets.long(), reduction='none')  # Per-sample loss
-    #             loss += self.orth_loss(output['pre_logits'], targets)
+                # Compute cross-entropy loss
+                loss = F.cross_entropy(logits, targets.long(), reduction='none')  # Per-sample loss
+                loss += self.orth_loss(output['pre_logits'], targets)
     
-    #             optimizer.zero_grad()
-    #             loss.mean().backward()  # Mean loss for optimization
-    #             optimizer.step()
+                optimizer.zero_grad()
+                loss.mean().backward()  # Mean loss for optimization
+                optimizer.step()
     
-    #             # Update EMA for adapters if momentum > 0
-    #             if self.args["adapter_momentum"] > 0:
-    #                 self._network.backbone.adapter_merge()
+                # Update EMA for adapters if momentum > 0
+                if self.args["adapter_momentum"] > 0:
+                    self._network.backbone.adapter_merge()
     
-    #             losses += loss.sum().item()  # Sum loss over batch
+                losses += loss.sum().item()  # Sum loss over batch
     
-    #             # Track class-specific losses
-    #             for class_id in range(self._total_classes):
-    #                 class_mask = (targets == class_id)  # Mask for current class
-    #                 class_counts[class_id] += class_mask.sum()
-    #                 class_losses[class_id] += loss[class_mask].sum()  # Add losses for the class
+                # Track class-specific losses
+                for class_id in range(self._total_classes):
+                    class_mask = (targets == class_id)  # Mask for current class
+                    class_counts[class_id] += class_mask.sum()
+                    class_losses[class_id] += loss[class_mask].sum()  # Add losses for the class
     
-    #             # Compute training accuracy
-    #             _, preds = torch.max(logits, dim=1)
-    #             correct += preds.eq(targets).cpu().sum()
-    #             total += len(targets)
+                # Compute training accuracy
+                _, preds = torch.max(logits, dim=1)
+                correct += preds.eq(targets).cpu().sum()
+                total += len(targets)
     
-    #         # Normalize class losses (avoid division by zero)
-    #         class_losses /= (class_counts + 1e-8)
+            # Normalize class losses (avoid division by zero)
+            class_losses /= (class_counts + 1e-8)
     
-    #         if scheduler:
-    #             scheduler.step()
-    #         train_acc = np.around(tensor2numpy(correct) * 100 / total, decimals=2)
+            if scheduler:
+                scheduler.step()
+            train_acc = np.around(tensor2numpy(correct) * 100 / total, decimals=2)
     
-    #         # Pass normalized class losses to the network
-    #         self._network.backbone.class_losses = class_losses
+            # Pass normalized class losses to the network
+            self._network.backbone.class_losses = class_losses
     
-    #         # Logging progress
-    #         info = "Task {}, Epoch {}/{} => Loss {:.3f}, Train_accy {:.2f}".format(
-    #             self._cur_task,
-    #             epoch + 1,
-    #             self.args['tuned_epoch'],
-    #             losses / len(train_loader),
-    #             train_acc,
-    #         )
-    #         prog_bar.set_description(info)
+            # Logging progress
+            info = "Task {}, Epoch {}/{} => Loss {:.3f}, Train_accy {:.2f}".format(
+                self._cur_task,
+                epoch + 1,
+                self.args['tuned_epoch'],
+                losses / len(train_loader),
+                train_acc,
+            )
+            prog_bar.set_description(info)
     
-    #     logging.info(info)
+        logging.info(info)
 
 
     @torch.no_grad()
@@ -628,54 +538,92 @@ class Learner(BaseLearner):
     #     logging.info("the accuracy of the original model:{}".format(np.around(orig_acc, 2)))
     #     return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
 
-
     def _eval_cnn(self, loader):
-        self._network.eval()  # Set model to evaluation mode
+        self._network.eval()
         y_pred, y_true = [], []
         orig_y_pred = []
-        
-        # Instantiate the self-refinement transformer
     
         for _, (_, inputs, targets) in enumerate(loader):
             inputs = inputs.to(self._device)
             with torch.no_grad():
-                # Step 1: Get original logits and predictions
+                # 1️⃣ Compute Original Model Logits & Predictions
                 orig_logits = self._network.forward_orig(inputs)["logits"][:, :self._total_classes]
                 orig_preds = torch.max(orig_logits, dim=1)[1].cpu().numpy()
                 orig_idx = torch.tensor([self.cls2task[v] for v in orig_preds], device=self._device)
-                
-                # Test the accuracy of the original model
+    
+                # Store original predictions
                 orig_y_pred.append(orig_preds)
-                
-                # Step 2: Collect features from different adapters
+    
+                # 2️⃣ Store All Adapter Features
                 all_features = torch.zeros(len(inputs), self._cur_task + 1, self._network.backbone.out_dim, device=self._device)
                 for t_id in range(self._cur_task + 1):
                     t_features = self._network.backbone(inputs, adapter_id=t_id, train=False)["features"]
                     all_features[:, t_id, :] = t_features
     
-                # Step 3: Use the Transformer model to refine features in one pass
-                refined_features = self.self_refiner(all_features)  # [batch_size, feature_dim]]
-
-                # refined_features = all_features
+                # 3️⃣ Compute Soft Teacher Targets for Knowledge Distillation
+                T = 2.0  # Temperature for distillation
+                orig_teacher_probs = F.softmax(orig_logits / T, dim=1).detach()  # Detach to avoid gradient flow
     
-                # Step 4: Get final logits using the refined features
-                final_logits = self._network.backbone(refined_features, fc_only=True)["logits"][:, :self._total_classes]
-                
-                # Step 5: Use ensemble or final logits based on ensemble flag
+                # 4️⃣ Self-Refinement Process with KD + Enhancements
+                final_logits = []
+                MAX_ITER = 4
+    
+                for x_id in range(len(inputs)):
+                    loop_num = 0
+                    prev_adapter_idx = orig_idx[x_id]
+                    prev_logits = orig_logits[x_id].unsqueeze(0)  # Store original logits
+                    
+                    while True:
+                        loop_num += 1
+                        cur_feature = all_features[x_id, prev_adapter_idx].unsqueeze(0)  # Extract feature
+                        cur_logits = self._network.backbone(cur_feature, fc_only=True)["logits"][:, :self._total_classes]
+                        
+                        # Compute soft probabilities for refined logits
+                        cur_probs = F.log_softmax(cur_logits / T, dim=1)  # Log-softmax for KL-div
+                        
+                        # Compute KL-Divergence Loss (Knowledge Distillation)
+                        distillation_loss = F.kl_div(cur_probs, orig_teacher_probs[x_id].unsqueeze(0), reduction='batchmean')
+    
+                        # Adaptive Distillation Weighting based on confidence score
+                        confidence_score = torch.max(orig_teacher_probs[x_id])
+                        weight = 0.1 * (1 - confidence_score)  # Higher weight for uncertain predictions
+                        adjusted_logits = cur_logits - (weight * distillation_loss)  # Apply KD loss
+    
+                        # Update cur_adapter_idx based on refined prediction
+                        cur_pred = torch.max(adjusted_logits, dim=1)[1].cpu().numpy()
+                        cur_adapter_idx = torch.tensor([self.cls2task[v] for v in cur_pred], device=self._device)[0]
+    
+                        # Compute entropy difference to determine early stopping
+                        entropy_diff = torch.sum(-cur_probs * cur_probs.exp()) - torch.sum(-prev_logits * prev_logits.exp())
+                        
+                        # Stop if converged, reached max iterations, or entropy change is small
+                        if loop_num >= MAX_ITER or cur_adapter_idx == prev_adapter_idx or entropy_diff < 0.01:
+                            break
+                        else:
+                            prev_adapter_idx = cur_adapter_idx
+                            prev_logits = adjusted_logits  # Save logits for next iteration
+    
+                    final_logits.append(adjusted_logits)
+    
+                # 5️⃣ Combine Final Logits
+                final_logits = torch.cat(final_logits, dim=0).to(self._device)
+    
+                # 6️⃣ Ensemble Strategy (Optional)
                 if self.ensemble:
                     final_logits = F.softmax(final_logits, dim=1)
-                    orig_logits = F.softmax(orig_logits / (1 / (self._cur_task + 1)), dim=1)
+                    orig_logits = F.softmax(orig_logits / (1/(self._cur_task+1)), dim=1)
                     outputs = final_logits + orig_logits
                 else:
                     outputs = final_logits
     
-            # Step 6: Top-k predictions
-            predicts = torch.topk(outputs, k=self.topk, dim=1, largest=True, sorted=True)[1]
+            # 7️⃣ Prediction & Accuracy Calculation
+            predicts = torch.topk(outputs, k=self.topk, dim=1, largest=True, sorted=True)[1]  # [bs, topk]
             y_pred.append(predicts.cpu().numpy())
             y_true.append(targets.cpu().numpy())
     
-        # Calculate and log the accuracy of the original model
+        # Compute original accuracy
         orig_acc = (np.concatenate(orig_y_pred) == np.concatenate(y_true)).sum() * 100 / len(np.concatenate(y_true))
         logging.info("The accuracy of the original model: {}".format(np.around(orig_acc, 2)))
     
         return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
+
