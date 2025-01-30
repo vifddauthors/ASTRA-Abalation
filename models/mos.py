@@ -656,7 +656,8 @@ class Learner(BaseLearner):
                     all_features[:, t_id, :] = t_features
     
                 # Step 3: Use the Transformer model to refine features in one pass
-                refined_features = self_refiner(all_features)  # [batch_size, feature_dim]
+                # refined_features = self_refiner(all_features)  # [batch_size, feature_dim]]
+                refined_features = all_features
     
                 # Step 4: Get final logits using the refined features
                 final_logits = self._network.backbone(refined_features, fc_only=True)["logits"][:, :self._total_classes]
