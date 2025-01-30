@@ -566,64 +566,116 @@ class Learner(BaseLearner):
             return self.args["reg"] * loss
             # return 0.0
     
+    # def _eval_cnn(self, loader):
+    #     self._network.eval()
+    #     y_pred, y_true = [], []
+    #     orig_y_pred = []
+    #     for _, (_, inputs, targets) in enumerate(loader):
+    #         inputs = inputs.to(self._device)
+    #         with torch.no_grad():
+    #             orig_logits = self._network.forward_orig(inputs)["logits"][:, :self._total_classes]
+    #             orig_preds = torch.max(orig_logits, dim=1)[1].cpu().numpy()
+    #             orig_idx = torch.tensor([self.cls2task[v] for v in orig_preds], device=self._device)
+                
+    #             # test the accuracy of the original model
+    #             orig_y_pred.append(orig_preds)
+                
+    #             all_features = torch.zeros(len(inputs), self._cur_task + 1, self._network.backbone.out_dim, device=self._device)
+    #             for t_id in range(self._cur_task + 1):
+    #                 t_features = self._network.backbone(inputs, adapter_id=t_id, train=False)["features"]
+    #                 all_features[:, t_id, :] = t_features
+                
+    #             # self-refined
+    #             final_logits = []
+                
+    #             MAX_ITER = 4
+    #             for x_id in range(len(inputs)):
+    #                 loop_num = 0
+    #                 prev_adapter_idx = orig_idx[x_id]
+    #                 while True:
+    #                     loop_num += 1
+    #                     cur_feature = all_features[x_id, prev_adapter_idx].unsqueeze(0) # shape=[1, 768]
+    #                     cur_logits = self._network.backbone(cur_feature, fc_only=True)["logits"][:, :self._total_classes]
+    #                     cur_pred = torch.max(cur_logits, dim=1)[1].cpu().numpy()
+    #                     cur_adapter_idx = torch.tensor([self.cls2task[v] for v in cur_pred], device=self._device)[0]
+                        
+    #                     if loop_num >= MAX_ITER or cur_adapter_idx == prev_adapter_idx:
+    #                         break
+    #                     else:
+    #                         prev_adapter_idx = cur_adapter_idx
+                        
+    #                 final_logits.append(cur_logits)
+    #             final_logits = torch.cat(final_logits, dim=0).to(self._device)
+    
+    #             if self.ensemble:
+    #                 final_logits = F.softmax(final_logits, dim=1)
+    #                 orig_logits = F.softmax(orig_logits / (1/(self._cur_task+1)), dim=1)
+    #                 outputs = final_logits + orig_logits
+    #             else:
+    #                 outputs = final_logits
+                
+    #         predicts = torch.topk(
+    #             outputs, k=self.topk, dim=1, largest=True, sorted=True
+    #         )[
+    #             1
+    #         ]  # [bs, topk]
+    #         y_pred.append(predicts.cpu().numpy())
+    #         y_true.append(targets.cpu().numpy())
+    
+    #     orig_acc = (np.concatenate(orig_y_pred) == np.concatenate(y_true)).sum() * 100 / len(np.concatenate(y_true))
+    #     logging.info("the accuracy of the original model:{}".format(np.around(orig_acc, 2)))
+    #     return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
+
+
     def _eval_cnn(self, loader):
-        self._network.eval()
+        self._network.eval()  # Set model to evaluation mode
         y_pred, y_true = [], []
         orig_y_pred = []
+        
+        # Instantiate the self-refinement transformer
+        self_refiner = SelfRefinementTransformer(
+            feature_dim=self._network.backbone.out_dim,
+            num_adapters=self._cur_task + 1
+        ).to(self._device)
+    
         for _, (_, inputs, targets) in enumerate(loader):
             inputs = inputs.to(self._device)
             with torch.no_grad():
+                # Step 1: Get original logits and predictions
                 orig_logits = self._network.forward_orig(inputs)["logits"][:, :self._total_classes]
                 orig_preds = torch.max(orig_logits, dim=1)[1].cpu().numpy()
                 orig_idx = torch.tensor([self.cls2task[v] for v in orig_preds], device=self._device)
                 
-                # test the accuracy of the original model
+                # Test the accuracy of the original model
                 orig_y_pred.append(orig_preds)
                 
+                # Step 2: Collect features from different adapters
                 all_features = torch.zeros(len(inputs), self._cur_task + 1, self._network.backbone.out_dim, device=self._device)
                 for t_id in range(self._cur_task + 1):
                     t_features = self._network.backbone(inputs, adapter_id=t_id, train=False)["features"]
                     all_features[:, t_id, :] = t_features
-                
-                # self-refined
-                final_logits = []
-                
-                MAX_ITER = 4
-                for x_id in range(len(inputs)):
-                    loop_num = 0
-                    prev_adapter_idx = orig_idx[x_id]
-                    while True:
-                        loop_num += 1
-                        cur_feature = all_features[x_id, prev_adapter_idx].unsqueeze(0) # shape=[1, 768]
-                        cur_logits = self._network.backbone(cur_feature, fc_only=True)["logits"][:, :self._total_classes]
-                        cur_pred = torch.max(cur_logits, dim=1)[1].cpu().numpy()
-                        cur_adapter_idx = torch.tensor([self.cls2task[v] for v in cur_pred], device=self._device)[0]
-                        
-                        if loop_num >= MAX_ITER or cur_adapter_idx == prev_adapter_idx:
-                            break
-                        else:
-                            prev_adapter_idx = cur_adapter_idx
-                        
-                    final_logits.append(cur_logits)
-                final_logits = torch.cat(final_logits, dim=0).to(self._device)
     
+                # Step 3: Use the Transformer model to refine features in one pass
+                refined_features = self_refiner(all_features)  # [batch_size, feature_dim]
+    
+                # Step 4: Get final logits using the refined features
+                final_logits = self._network.backbone(refined_features, fc_only=True)["logits"][:, :self._total_classes]
+                
+                # Step 5: Use ensemble or final logits based on ensemble flag
                 if self.ensemble:
                     final_logits = F.softmax(final_logits, dim=1)
-                    orig_logits = F.softmax(orig_logits / (1/(self._cur_task+1)), dim=1)
+                    orig_logits = F.softmax(orig_logits / (1 / (self._cur_task + 1)), dim=1)
                     outputs = final_logits + orig_logits
                 else:
                     outputs = final_logits
-                
-            predicts = torch.topk(
-                outputs, k=self.topk, dim=1, largest=True, sorted=True
-            )[
-                1
-            ]  # [bs, topk]
+    
+            # Step 6: Top-k predictions
+            predicts = torch.topk(outputs, k=self.topk, dim=1, largest=True, sorted=True)[1]
             y_pred.append(predicts.cpu().numpy())
             y_true.append(targets.cpu().numpy())
     
+        # Calculate and log the accuracy of the original model
         orig_acc = (np.concatenate(orig_y_pred) == np.concatenate(y_true)).sum() * 100 / len(np.concatenate(y_true))
-        logging.info("the accuracy of the original model:{}".format(np.around(orig_acc, 2)))
-        return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
+        logging.info("The accuracy of the original model: {}".format(np.around(orig_acc, 2)))
     
-
+        return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
