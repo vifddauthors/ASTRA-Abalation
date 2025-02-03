@@ -373,7 +373,7 @@ class Learner(BaseLearner):
     
                 # 🔹 Step 4: Train Task Selector (Using Task-Specific Memory)
                 with torch.no_grad():
-                    shared_features = self._network.backbone(inputs, shared=True)["features"]  # Get shared features
+                    shared_features = self._network.backbone(inputs)["features"]  # Get shared features
                 
                 task_probs, memory_loss = self.task_selector(shared_features, task_id=self._cur_task)  
     
