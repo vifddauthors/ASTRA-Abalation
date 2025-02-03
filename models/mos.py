@@ -330,7 +330,7 @@ class Learner(BaseLearner):
     
     #     logging.info(info)
 
-    def _init_train(self, train_loader, test_loader, optimizer, scheduler, task_selector_optimizer):
+    def _init_train(self, train_loader, test_loader, optimizer, scheduler):
         prog_bar = tqdm(range(self.args['tuned_epoch']))
         for _, epoch in enumerate(prog_bar):
             self._network.backbone.train()
@@ -384,7 +384,7 @@ class Learner(BaseLearner):
                 # Optimize task selector
                 self.task_selector_optimizer.zero_grad()
                 task_loss.backward()
-                task_selector_optimizer.step()
+                self.task_selector_optimizer.step()
     
                 # 🔹 Compute training accuracy
                 _, preds = torch.max(logits, dim=1)
