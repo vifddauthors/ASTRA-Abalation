@@ -341,7 +341,7 @@ class Learner(BaseLearner):
         Higher weight for difficult samples
         """
         # Compute per-sample cross-entropy loss
-        loss = F.cross_entropy(logits, targets, reduction='none')
+        loss = F.cross_entropy(logits, targets.long(), reduction='none')
         
         # Compute weights based on the loss, giving more weight to difficult samples
         weights = (1.0 / (loss + alpha)).detach()  # Avoid division by zero (alpha)
