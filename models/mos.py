@@ -386,7 +386,7 @@ class Learner(BaseLearner):
                 
                 # Compute task selector loss (task prediction + memory stability)
                 task_labels = torch.tensor([self.cls2task[t.item()] for t in targets], device=self._device)
-                task_loss = F.cross_entropy(task_probs, task_labels) + 0.1 * memory_loss  # Balance classification & memory loss
+                task_loss = F.cross_entropy(task_probs, task_labels) + 0.05 * memory_loss  # Balance classification & memory loss
                 print(f'task loss: {task_loss}')
                 # Optimize task selector
                 self.task_optimizer.zero_grad()
