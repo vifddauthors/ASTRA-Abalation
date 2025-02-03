@@ -388,9 +388,9 @@ class Learner(BaseLearner):
                 task_loss = F.cross_entropy(task_probs, task_labels) + 0.1 * memory_loss  # Balance classification & memory loss
                 print(f'task loss: {task_loss}')
                 # Optimize task selector
-                self.task_selector_optimizer.zero_grad()
+                self.task_optimizer.zero_grad()
                 task_loss.backward()
-                self.task_selector_optimizer.step()
+                self.task_optimizer.step()
     
                 # 🔹 Compute training accuracy
                 _, preds = torch.max(logits, dim=1)
