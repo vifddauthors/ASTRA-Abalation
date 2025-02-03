@@ -335,7 +335,7 @@ class Learner(BaseLearner):
     #         prog_bar.set_description(info)
     
     #     logging.info(info)
-    def dro_loss(logits, targets, alpha=0.1):
+    def dro_loss(self,logits, targets, alpha=0.1):
         """
         Distributionally Robust Optimization (DRO) Loss
         Higher weight for difficult samples
