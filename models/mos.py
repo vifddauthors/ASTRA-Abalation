@@ -754,12 +754,22 @@ class Learner(BaseLearner):
                 adapter_idx = torch.argmax(task_probs, dim=1)  # Select highest probability adapter
     
                 # 🔹 Step 4: Extract Features Using the Selected Adapter
-                selected_features = self._network.backbone(inputs, adapter_id=adapter_idx, train=False)["features"]
+                final_logits = []
+                for i in range(inputs.shape[0]):  # Iterate over the batch
+                    selected_features = self._network.backbone(
+                        inputs[i].unsqueeze(0),  # Extract single sample
+                        adapter_id=int(adapter_idx[i].item()),  # Convert tensor to int
+                        train=False
+                    )["features"]
     
-                # 🔹 Step 5: Classify Using Final Classifier
-                final_logits = self._network.backbone(selected_features, fc_only=True)["logits"][:, :self._total_classes]
+                    # Get logits for this sample
+                    logits = self._network.backbone(selected_features, fc_only=True)["logits"][:, :self._total_classes]
+                    final_logits.append(logits)
     
-                # 🔹 Step 6: Ensemble (if enabled)
+                # 🔹 Stack logits to reconstruct the batch
+                final_logits = torch.cat(final_logits, dim=0).to(self._device)
+    
+                # 🔹 Step 5: Ensemble (if enabled)
                 if self.ensemble:
                     final_logits = F.softmax(final_logits, dim=1)
                     orig_logits = F.softmax(orig_logits / (1 / (self._cur_task + 1)), dim=1)
@@ -767,12 +777,12 @@ class Learner(BaseLearner):
                 else:
                     outputs = final_logits
     
-            # 🔹 Step 7: Get Final Predictions
+            # 🔹 Step 6: Get Final Predictions
             predicts = torch.topk(outputs, k=self.topk, dim=1, largest=True, sorted=True)[1]  # [batch_size, topk]
             y_pred.append(predicts.cpu().numpy())
             y_true.append(targets.cpu().numpy())
     
-        # 🔹 Step 8: Compute Original Model Accuracy
+        # 🔹 Step 7: Compute Original Model Accuracy
         orig_acc = (np.concatenate(orig_y_pred) == np.concatenate(y_true)).sum() * 100 / len(np.concatenate(y_true))
         logging.info("The accuracy of the original model: {}".format(np.around(orig_acc, 2)))
     
