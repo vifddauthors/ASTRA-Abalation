@@ -42,16 +42,17 @@ class MemoryTaskSelector(nn.Module):
             torch.Tensor: Task probabilities (shape [B, num_tasks])
             torch.Tensor (optional): Memory loss for regularization
         """
-        # 🔹 Ensure `features` is on the same device as model
+        # 🔹 Ensure `features` is on the correct device
         features = features.to(self.device)
-
+    
         # 🔹 Predict task probabilities
         task_logits = self.fc(features)  # Shape: [B, num_tasks]
         task_probs = F.softmax(task_logits, dim=-1)  
-
+    
         # 🔹 Memory Regularization (Only in Training)
         if task_id is not None:
-            memory_loss = F.mse_loss(features, self.memory[task_id].to(self.device))  # Ensure memory tensor is on correct device
+            # 🔹 Expand memory vector to match batch size
+            memory_loss = F.mse_loss(features, self.memory[task_id].unsqueeze(0).expand_as(features).to(self.device))
             return task_probs, memory_loss
         else:
             return task_probs  # Only return probabilities in inference
