@@ -335,6 +335,22 @@ class Learner(BaseLearner):
     #         prog_bar.set_description(info)
     
     #     logging.info(info)
+    def dro_loss(logits, targets, alpha=0.1):
+        """
+        Distributionally Robust Optimization (DRO) Loss
+        Higher weight for difficult samples
+        """
+        # Compute per-sample cross-entropy loss
+        loss = F.cross_entropy(logits, targets, reduction='none')
+        
+        # Compute weights based on the loss, giving more weight to difficult samples
+        weights = (1.0 / (loss + alpha)).detach()  # Avoid division by zero (alpha)
+        
+        # Weighted loss for each sample
+        weighted_loss = (loss * weights).mean()
+        
+        return weighted_loss
+
 
     def _init_train(self, train_loader, test_loader, optimizer, scheduler):
         prog_bar = tqdm(range(self.args['tuned_epoch']))
@@ -358,11 +374,13 @@ class Learner(BaseLearner):
                 logits[:, :self._known_classes] = float('-inf')
     
                 # 🔹 Step 2: Compute Classification Loss
-                loss = F.cross_entropy(logits, targets.long(), reduction='none')  # Per-sample loss
+                # loss = F.cross_entropy(logits, targets.long(), reduction='none')  # Per-sample loss
+                loss=dro_loss(logits, targets)
                 loss += self.orth_loss(output['pre_logits'], targets)  # Add orthogonality loss
     
                 optimizer.zero_grad()
-                loss.mean().backward()  # Mean loss for optimization
+                # loss.mean().backward()  # Mean loss for optimization
+                loss.backward()
                 optimizer.step()
     
                 # 🔹 Step 3: Update EMA for Adapters (if applicable)
@@ -387,7 +405,7 @@ class Learner(BaseLearner):
                 # Compute task selector loss (task prediction + memory stability)
                 task_labels = torch.tensor([self.cls2task[t.item()] for t in targets], device=self._device)
                 task_loss = F.cross_entropy(task_probs, task_labels) + 0.05 * memory_loss  # Balance classification & memory loss
-                print(f'task loss: {task_loss}')
+                # print(f'task loss: {task_loss}')
                 # Optimize task selector
                 self.task_optimizer.zero_grad()
                 task_loss.backward()
