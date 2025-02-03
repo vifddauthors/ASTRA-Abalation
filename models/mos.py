@@ -16,20 +16,21 @@ from torch.distributions.multivariate_normal import MultivariateNormal
 num_workers = 8
 
 class MemoryTaskSelector(nn.Module):
-    def __init__(self, feature_dim, num_tasks, hidden_dim=128):
+    def __init__(self, feature_dim, num_tasks, hidden_dim=128, device="cuda"):
         super().__init__()
         self.num_tasks = num_tasks
         self.feature_dim = feature_dim
+        self.device = device  # Store device information
 
-        # 🔹 Memory: Stores a representation for each task
-        self.memory = nn.Parameter(torch.randn(num_tasks, feature_dim))  # Learnable task memory
+        # 🔹 Move memory to the correct device
+        self.memory = nn.Parameter(torch.randn(num_tasks, feature_dim).to(device))  # Move memory to device
 
         # 🔹 Task Selector Network (MLP)
         self.fc = nn.Sequential(
             nn.Linear(feature_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, num_tasks)  # Predict task probabilities
-        )
+            nn.Linear(hidden_dim, num_tasks)
+        ).to(device)  # Move model to the correct device
 
     def forward(self, features, task_id=None):
         """
@@ -41,16 +42,20 @@ class MemoryTaskSelector(nn.Module):
             torch.Tensor: Task probabilities (shape [B, num_tasks])
             torch.Tensor (optional): Memory loss for regularization
         """
+        # 🔹 Ensure `features` is on the same device as model
+        features = features.to(self.device)
+
         # 🔹 Predict task probabilities
         task_logits = self.fc(features)  # Shape: [B, num_tasks]
         task_probs = F.softmax(task_logits, dim=-1)  
 
         # 🔹 Memory Regularization (Only in Training)
         if task_id is not None:
-            memory_loss = F.mse_loss(features, self.memory[task_id])  # Keep features close to stored memory
+            memory_loss = F.mse_loss(features, self.memory[task_id].to(self.device))  # Ensure memory tensor is on correct device
             return task_probs, memory_loss
         else:
             return task_probs  # Only return probabilities in inference
+
 
 
 
@@ -373,10 +378,11 @@ class Learner(BaseLearner):
     
                 # 🔹 Step 4: Train Task Selector (Using Task-Specific Memory)
                 with torch.no_grad():
-                    shared_features = self._network.backbone(inputs)["features"]  # Get shared features
+                    shared_features = self._network.backbone(inputs)["features"].to(self._device)  # ✅ Move to correct device
                 
                 task_probs, memory_loss = self.task_selector(shared_features, task_id=self._cur_task)  
-    
+
+                
                 # Compute task selector loss (task prediction + memory stability)
                 task_labels = torch.tensor([self.cls2task[t.item()] for t in targets], device=self._device)
                 task_loss = F.cross_entropy(task_probs, task_labels) + 0.1 * memory_loss  # Balance classification & memory loss
