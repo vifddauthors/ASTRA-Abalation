@@ -335,13 +335,13 @@ class Learner(BaseLearner):
     #         prog_bar.set_description(info)
     
     #     logging.info(info)
-    def dro_loss(self,logits, targets, alpha=0.1):
+    def dro_loss(self,ce_loss, logits, targets, alpha=0.1):
         """
         Distributionally Robust Optimization (DRO) Loss
         Higher weight for difficult samples
         """
         # Compute per-sample cross-entropy loss
-        loss = F.cross_entropy(logits, targets.long(), reduction='none')
+        loss =ce_loss
         
         # Compute weights based on the loss, giving more weight to difficult samples
         weights = (1.0 / (loss + alpha)).detach()  # Avoid division by zero (alpha)
@@ -374,8 +374,8 @@ class Learner(BaseLearner):
                 logits[:, :self._known_classes] = float('-inf')
     
                 # 🔹 Step 2: Compute Classification Loss
-                # loss = F.cross_entropy(logits, targets.long(), reduction='none')  # Per-sample loss
-                loss=self.dro_loss(logits, targets)
+                ce_loss = F.cross_entropy(logits, targets.long(), reduction='none')  # Per-sample loss
+                loss=self.dro_loss(ce_loss,logits, targets)
                 loss += self.orth_loss(output['pre_logits'], targets)  # Add orthogonality loss
     
                 optimizer.zero_grad()
@@ -393,7 +393,7 @@ class Learner(BaseLearner):
                 for class_id in range(self._total_classes):
                     class_mask = (targets == class_id)  # Mask for current class
                     class_counts[class_id] += class_mask.sum()
-                    class_losses[class_id] += loss[class_mask].sum()  # Add losses for the class
+                    class_losses[class_id] += ce_loss[class_mask].sum()  # Add losses for the class
     
                 # 🔹 Step 4: Train Task Selector (Using Task-Specific Memory)
                 with torch.no_grad():
