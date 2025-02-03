@@ -375,7 +375,7 @@ class Learner(BaseLearner):
     
                 # 🔹 Step 2: Compute Classification Loss
                 # loss = F.cross_entropy(logits, targets.long(), reduction='none')  # Per-sample loss
-                loss=dro_loss(logits, targets)
+                loss=self.dro_loss(logits, targets)
                 loss += self.orth_loss(output['pre_logits'], targets)  # Add orthogonality loss
     
                 optimizer.zero_grad()
