@@ -640,90 +640,139 @@ class Learner(BaseLearner):
     #     logging.info("the accuracy of the original model:{}".format(np.around(orig_acc, 2)))
     #     return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
 
+    # def _eval_cnn(self, loader):
+    #     self._network.eval()
+    #     y_pred, y_true = [], []
+    #     orig_y_pred = []
+    
+    #     for _, (_, inputs, targets) in enumerate(loader):
+    #         inputs = inputs.to(self._device)
+    #         with torch.no_grad():
+    #             # 1️⃣ Compute Original Model Logits & Predictions
+    #             orig_logits = self._network.forward_orig(inputs)["logits"][:, :self._total_classes]
+    #             orig_preds = torch.max(orig_logits, dim=1)[1].cpu().numpy()
+    #             orig_idx = torch.tensor([self.cls2task[v] for v in orig_preds], device=self._device)
+    
+    #             # Store original predictions
+    #             orig_y_pred.append(orig_preds)
+    
+    #             # 2️⃣ Store All Adapter Features
+    #             all_features = torch.zeros(len(inputs), self._cur_task + 1, self._network.backbone.out_dim, device=self._device)
+    #             for t_id in range(self._cur_task + 1):
+    #                 t_features = self._network.backbone(inputs, adapter_id=t_id, train=False)["features"]
+    #                 all_features[:, t_id, :] = t_features
+    
+    #             # 3️⃣ Compute Soft Teacher Targets for Knowledge Distillation
+    #             T = 2.0  # Temperature for distillation
+    #             orig_teacher_probs = F.softmax(orig_logits / T, dim=1).detach()  # Detach to avoid gradient flow
+    
+    #             # 4️⃣ Self-Refinement Process with KD + Enhancements
+    #             final_logits = []
+    #             MAX_ITER = 4
+    
+    #             for x_id in range(len(inputs)):
+    #                 loop_num = 0
+    #                 prev_adapter_idx = orig_idx[x_id]
+    #                 prev_logits = orig_logits[x_id].unsqueeze(0)  # Store original logits
+                    
+    #                 while True:
+    #                     loop_num += 1
+    #                     cur_feature = all_features[x_id, prev_adapter_idx].unsqueeze(0)  # Extract feature
+    #                     cur_logits = self._network.backbone(cur_feature, fc_only=True)["logits"][:, :self._total_classes]
+                        
+    #                     # Compute soft probabilities for refined logits
+    #                     cur_probs = F.log_softmax(cur_logits / T, dim=1)  # Log-softmax for KL-div
+                        
+    #                     # Compute KL-Divergence Loss (Knowledge Distillation)
+    #                     distillation_loss = F.kl_div(cur_probs, orig_teacher_probs[x_id].unsqueeze(0), reduction='batchmean')
+    
+    #                     # Adaptive Distillation Weighting based on confidence score
+    #                     confidence_score = torch.max(orig_teacher_probs[x_id])
+    #                     weight = 0.1 * (1 - confidence_score)  # Higher weight for uncertain predictions
+    #                     adjusted_logits = cur_logits - (weight * distillation_loss)  # Apply KD loss
+    
+    #                     # Update cur_adapter_idx based on refined prediction
+    #                     cur_pred = torch.max(adjusted_logits, dim=1)[1].cpu().numpy()
+    #                     cur_adapter_idx = torch.tensor([self.cls2task[v] for v in cur_pred], device=self._device)[0]
+    
+    #                     # Compute entropy difference to determine early stopping
+    #                     entropy_diff = torch.sum(-cur_probs * cur_probs.exp()) - torch.sum(-prev_logits * prev_logits.exp())
+                        
+    #                     # Stop if converged, reached max iterations, or entropy change is small
+    #                     if loop_num >= MAX_ITER or cur_adapter_idx == prev_adapter_idx or entropy_diff < 0.01:
+    #                         break
+    #                     else:
+    #                         prev_adapter_idx = cur_adapter_idx
+    #                         prev_logits = adjusted_logits  # Save logits for next iteration
+    
+    #                 final_logits.append(adjusted_logits)
+    
+    #             # 5️⃣ Combine Final Logits
+    #             final_logits = torch.cat(final_logits, dim=0).to(self._device)
+    
+    #             # 6️⃣ Ensemble Strategy (Optional)
+    #             if self.ensemble:
+    #                 final_logits = F.softmax(final_logits, dim=1)
+    #                 orig_logits = F.softmax(orig_logits / (1/(self._cur_task+1)), dim=1)
+    #                 outputs = final_logits + orig_logits
+    #             else:
+    #                 outputs = final_logits
+    
+    #         # 7️⃣ Prediction & Accuracy Calculation
+    #         predicts = torch.topk(outputs, k=self.topk, dim=1, largest=True, sorted=True)[1]  # [bs, topk]
+    #         y_pred.append(predicts.cpu().numpy())
+    #         y_true.append(targets.cpu().numpy())
+    
+    #     # Compute original accuracy
+    #     orig_acc = (np.concatenate(orig_y_pred) == np.concatenate(y_true)).sum() * 100 / len(np.concatenate(y_true))
+    #     logging.info("The accuracy of the original model: {}".format(np.around(orig_acc, 2)))
+    
+    #     return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
     def _eval_cnn(self, loader):
         self._network.eval()
+        self.task_selector.eval()  # Ensure task selector is in eval mode
+    
         y_pred, y_true = [], []
         orig_y_pred = []
     
         for _, (_, inputs, targets) in enumerate(loader):
             inputs = inputs.to(self._device)
             with torch.no_grad():
-                # 1️⃣ Compute Original Model Logits & Predictions
+                # 🔹 Step 1: Get Initial Predictions from Original Model
                 orig_logits = self._network.forward_orig(inputs)["logits"][:, :self._total_classes]
                 orig_preds = torch.max(orig_logits, dim=1)[1].cpu().numpy()
                 orig_idx = torch.tensor([self.cls2task[v] for v in orig_preds], device=self._device)
     
-                # Store original predictions
+                # 🔹 Store original predictions for accuracy evaluation
                 orig_y_pred.append(orig_preds)
     
-                # 2️⃣ Store All Adapter Features
-                all_features = torch.zeros(len(inputs), self._cur_task + 1, self._network.backbone.out_dim, device=self._device)
-                for t_id in range(self._cur_task + 1):
-                    t_features = self._network.backbone(inputs, adapter_id=t_id, train=False)["features"]
-                    all_features[:, t_id, :] = t_features
+                # 🔹 Step 2: Extract Shared Features
+                shared_features = self._network.backbone(inputs)["features"]
     
-                # 3️⃣ Compute Soft Teacher Targets for Knowledge Distillation
-                T = 2.0  # Temperature for distillation
-                orig_teacher_probs = F.softmax(orig_logits / T, dim=1).detach()  # Detach to avoid gradient flow
+                # 🔹 Step 3: Use Task Selector to Predict the Best Adapter
+                task_probs = self.task_selector(shared_features)  # Shape: [B, num_tasks]
+                adapter_idx = torch.argmax(task_probs, dim=1)  # Select highest probability adapter
     
-                # 4️⃣ Self-Refinement Process with KD + Enhancements
-                final_logits = []
-                MAX_ITER = 4
+                # 🔹 Step 4: Extract Features Using the Selected Adapter
+                selected_features = self._network.backbone(inputs, adapter_id=adapter_idx, train=False)["features"]
     
-                for x_id in range(len(inputs)):
-                    loop_num = 0
-                    prev_adapter_idx = orig_idx[x_id]
-                    prev_logits = orig_logits[x_id].unsqueeze(0)  # Store original logits
-                    
-                    while True:
-                        loop_num += 1
-                        cur_feature = all_features[x_id, prev_adapter_idx].unsqueeze(0)  # Extract feature
-                        cur_logits = self._network.backbone(cur_feature, fc_only=True)["logits"][:, :self._total_classes]
-                        
-                        # Compute soft probabilities for refined logits
-                        cur_probs = F.log_softmax(cur_logits / T, dim=1)  # Log-softmax for KL-div
-                        
-                        # Compute KL-Divergence Loss (Knowledge Distillation)
-                        distillation_loss = F.kl_div(cur_probs, orig_teacher_probs[x_id].unsqueeze(0), reduction='batchmean')
+                # 🔹 Step 5: Classify Using Final Classifier
+                final_logits = self._network.backbone(selected_features, fc_only=True)["logits"][:, :self._total_classes]
     
-                        # Adaptive Distillation Weighting based on confidence score
-                        confidence_score = torch.max(orig_teacher_probs[x_id])
-                        weight = 0.1 * (1 - confidence_score)  # Higher weight for uncertain predictions
-                        adjusted_logits = cur_logits - (weight * distillation_loss)  # Apply KD loss
-    
-                        # Update cur_adapter_idx based on refined prediction
-                        cur_pred = torch.max(adjusted_logits, dim=1)[1].cpu().numpy()
-                        cur_adapter_idx = torch.tensor([self.cls2task[v] for v in cur_pred], device=self._device)[0]
-    
-                        # Compute entropy difference to determine early stopping
-                        entropy_diff = torch.sum(-cur_probs * cur_probs.exp()) - torch.sum(-prev_logits * prev_logits.exp())
-                        
-                        # Stop if converged, reached max iterations, or entropy change is small
-                        if loop_num >= MAX_ITER or cur_adapter_idx == prev_adapter_idx or entropy_diff < 0.01:
-                            break
-                        else:
-                            prev_adapter_idx = cur_adapter_idx
-                            prev_logits = adjusted_logits  # Save logits for next iteration
-    
-                    final_logits.append(adjusted_logits)
-    
-                # 5️⃣ Combine Final Logits
-                final_logits = torch.cat(final_logits, dim=0).to(self._device)
-    
-                # 6️⃣ Ensemble Strategy (Optional)
+                # 🔹 Step 6: Ensemble (if enabled)
                 if self.ensemble:
                     final_logits = F.softmax(final_logits, dim=1)
-                    orig_logits = F.softmax(orig_logits / (1/(self._cur_task+1)), dim=1)
+                    orig_logits = F.softmax(orig_logits / (1 / (self._cur_task + 1)), dim=1)
                     outputs = final_logits + orig_logits
                 else:
                     outputs = final_logits
     
-            # 7️⃣ Prediction & Accuracy Calculation
-            predicts = torch.topk(outputs, k=self.topk, dim=1, largest=True, sorted=True)[1]  # [bs, topk]
+            # 🔹 Step 7: Get Final Predictions
+            predicts = torch.topk(outputs, k=self.topk, dim=1, largest=True, sorted=True)[1]  # [batch_size, topk]
             y_pred.append(predicts.cpu().numpy())
             y_true.append(targets.cpu().numpy())
     
-        # Compute original accuracy
+        # 🔹 Step 8: Compute Original Model Accuracy
         orig_acc = (np.concatenate(orig_y_pred) == np.concatenate(y_true)).sum() * 100 / len(np.concatenate(y_true))
         logging.info("The accuracy of the original model: {}".format(np.around(orig_acc, 2)))
     
