@@ -806,6 +806,8 @@ class Learner(BaseLearner):
         # 🔹 Step 7: Compute Original Model Accuracy
         orig_acc = (np.concatenate(orig_y_pred) == np.concatenate(y_true)).sum() * 100 / len(np.concatenate(y_true))
                 # Store execution time and calculate average
+        end_time = time.time()
+        elapsed_time = end_time - start_time
         self.eval_cnn_times.append(elapsed_time)
         avg_time = sum(self.eval_cnn_times) / len(self.eval_cnn_times)
 
