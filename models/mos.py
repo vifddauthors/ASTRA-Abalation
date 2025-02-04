@@ -10,6 +10,7 @@ from utils.inc_net import MOSNet
 from models.base import BaseLearner
 from utils.toolkit import tensor2numpy, target2onehot
 from torch.distributions.multivariate_normal import MultivariateNormal
+import time
 
 
 # tune the model at first session with vpt, and then conduct simple shot.
@@ -81,6 +82,7 @@ class Learner(BaseLearner):
         self.task_optimizer=optim.Adam(
                 self.task_selector.parameters(),
             )
+        self.eval_cnn_times = [] 
 
         
         for n, p in self._network.backbone.named_parameters():
@@ -747,6 +749,7 @@ class Learner(BaseLearner):
     
     #     return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
     def _eval_cnn(self, loader):
+        start_time = time.time()
         self._network.eval()
         self.task_selector.eval()  # Ensure task selector is in eval mode
     
@@ -802,6 +805,12 @@ class Learner(BaseLearner):
     
         # 🔹 Step 7: Compute Original Model Accuracy
         orig_acc = (np.concatenate(orig_y_pred) == np.concatenate(y_true)).sum() * 100 / len(np.concatenate(y_true))
+                # Store execution time and calculate average
+        self.eval_cnn_times.append(elapsed_time)
+        avg_time = sum(self.eval_cnn_times) / len(self.eval_cnn_times)
+
+        print(f"Time taken for _eval_cnn: {elapsed_time:.4f} seconds")
+        print(f"Average time for _eval_cnn calls: {avg_time:.4f} seconds")
         logging.info("The accuracy of the original model: {}".format(np.around(orig_acc, 2)))
     
         return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
