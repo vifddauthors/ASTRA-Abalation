@@ -356,6 +356,10 @@ class Learner(BaseLearner):
 
     def _init_train(self, train_loader, test_loader, optimizer, scheduler):
         prog_bar = tqdm(range(self.args['tuned_epoch']))
+        initial_lambda = 0.1  # Start with a small weight
+        lambda_growth = 1.1
+        factor=initial_lambda * (lambda_growth ** self._cur_task)
+        print(f'memory_loss_factor: {factor}')
         for _, epoch in enumerate(prog_bar):
             self._network.backbone.train()
             self.task_selector.train()  # Ensure task selector is in train mode
@@ -406,7 +410,7 @@ class Learner(BaseLearner):
                 
                 # Compute task selector loss (task prediction + memory stability)
                 task_labels = torch.tensor([self.cls2task[t.item()] for t in targets], device=self._device)
-                task_loss = F.cross_entropy(task_probs, task_labels) + 0.1 * memory_loss  # Balance classification & memory loss
+                task_loss = F.cross_entropy(task_probs, task_labels) + factor * memory_loss  # Balance classification & memory loss
                 # print(f'task loss: {task_loss}')
                 # Optimize task selector
                 self.task_optimizer.zero_grad()
