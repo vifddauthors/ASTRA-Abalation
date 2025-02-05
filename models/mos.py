@@ -382,7 +382,7 @@ class Learner(BaseLearner):
     
                 optimizer.zero_grad()
                 # loss.mean().backward()  # Mean loss for optimization
-                loss.backward()
+                loss.mean().backward()
                 optimizer.step()
     
                 # 🔹 Step 3: Update EMA for Adapters (if applicable)
