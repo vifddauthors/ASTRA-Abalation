@@ -844,7 +844,9 @@ class Learner(BaseLearner):
                 topk_adapters = torch.topk(task_probs, k=3, dim=1)  # Get top-3 adapters
                 adapter_indices = topk_adapters.indices  # Shape: [batch_size, 3]
                 adapter_probs = topk_adapters.values  # Shape: [batch_size, 3]
-    
+                print(topk_adapters)
+                print(adapter_indices)
+                print(adapter_probs)
                 # 🔹 Step 4: Extract Features Using the Selected Adapter(s)
                 logits_list = []
                 for i in range(inputs.shape[0]):  # Iterate over the batch
