@@ -871,7 +871,7 @@ class Learner(BaseLearner):
                         weighted_logits = (logits_stack * adapter_probs[i, :k_valid].view(k_valid, 1, 1)).sum(dim=0)
                         # logits_stack = torch.stack(sample_logits, dim=0)  
                         # weighted_logits = (logits_stack * adapter_probs[i].view(3, 1, 1)).sum(dim=0)  
-                        # logits_list.append(weighted_logits)
+                        logits_list.append(weighted_logits)
                     else:
                         # 🔹 Only use the highest-confidence adapter
                         adapter_id = int(adapter_indices[i, 0].item())  # Pick the top-1 adapter
