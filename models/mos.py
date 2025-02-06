@@ -866,9 +866,12 @@ class Learner(BaseLearner):
                             sample_logits.append(logits)
                         
                         # 🔹 Weighted sum of top-3 adapters
-                        logits_stack = torch.stack(sample_logits, dim=0)  
-                        weighted_logits = (logits_stack * adapter_probs[i].view(3, 1, 1)).sum(dim=0)  
-                        logits_list.append(weighted_logits)
+                        logits_stack = torch.stack(sample_logits, dim=0)
+                        k_valid = logits_stack.shape[0]  # Get the actual number of valid adapters
+                        weighted_logits = (logits_stack * adapter_probs[i, :k_valid].view(k_valid, 1, 1)).sum(dim=0)
+                        # logits_stack = torch.stack(sample_logits, dim=0)  
+                        # weighted_logits = (logits_stack * adapter_probs[i].view(3, 1, 1)).sum(dim=0)  
+                        # logits_list.append(weighted_logits)
                     else:
                         # 🔹 Only use the highest-confidence adapter
                         adapter_id = int(adapter_indices[i, 0].item())  # Pick the top-1 adapter
