@@ -12,7 +12,7 @@
     "device": ["0"],
     "seed": [1993],
     
-    "tuned_epoch": 10,
+    "tuned_epoch": 20,
     "init_lr": 0.01,
     "batch_size": 32,
     "weight_decay": 0.0005,
@@ -26,7 +26,7 @@
     "adapter_momentum": 0.1,
     "ensemble": true,
 
-    "crct_epochs": 15,
+    "crct_epochs": 30,
     "ca_lr": 0.005,
     "ca_storage_efficient_method": "covariance", 
     "ca_storage_efficient_method_choices": ["covariance", "multi-centroid", "variance"],
