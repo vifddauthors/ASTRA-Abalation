@@ -853,6 +853,8 @@ class Learner(BaseLearner):
                     if self.ensemble:
                         sample_logits = []
                         for j in range(3):  # Top-3 adapters
+                            if int(adapter_indices[i, j].item()) <0 or int(adapter_indices[i, j].item())>self._cur_task_:
+                                continue
                             adapter_id = int(adapter_indices[i, j].item())
                             selected_features = self._network.backbone(
                                 inputs[i].unsqueeze(0),  
