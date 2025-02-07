@@ -336,6 +336,10 @@ class VisionTransformer(nn.Module):
         self.down_bias_sum = [[] for i in range(len(self.blocks))]
         self.up_weight_sum = [[] for i in range(len(self.blocks))]
         self.up_bias_sum = [[] for i in range(len(self.blocks))]
+        self.attn_weight_sum =  [[] for i in range(len(self.blocks))]
+        self.attn_bias_sum=  [[] for i in range(len(self.blocks))]
+        self.attn_out_weight_sum =  [[] for i in range(len(self.blocks))]
+        self.attn_out_bias_sum =  [[] for i in range(len(self.blocks))]         
         
         self.init_adapters()
 
