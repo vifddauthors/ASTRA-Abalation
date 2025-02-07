@@ -389,19 +389,44 @@ class VisionTransformer(nn.Module):
         self.sum_adapter_param()
     
     # Calculate the prefix sum of the adapters.
+    # def sum_adapter_param(self):      
+    #     for layer_idx in range(len(self.blocks)):
+    #         if len(self.down_weight_sum[layer_idx]) > 0:
+    #             self.down_weight_sum[layer_idx].append(self.cur_adapter[layer_idx].down_proj.weight.data + self.down_weight_sum[layer_idx][-1])
+    #             self.down_bias_sum[layer_idx].append(self.cur_adapter[layer_idx].down_proj.bias.data + self.down_bias_sum[layer_idx][-1])
+    #             self.up_weight_sum[layer_idx].append(self.cur_adapter[layer_idx].up_proj.weight.data + self.up_weight_sum[layer_idx][-1])
+    #             self.up_bias_sum[layer_idx].append(self.cur_adapter[layer_idx].up_proj.bias.data + self.up_bias_sum[layer_idx][-1])
+    #         else:
+    #             self.down_weight_sum[layer_idx].append(self.cur_adapter[layer_idx].down_proj.weight.data)
+    #             self.down_bias_sum[layer_idx].append(self.cur_adapter[layer_idx].down_proj.bias.data)
+    #             self.up_weight_sum[layer_idx].append(self.cur_adapter[layer_idx].up_proj.weight.data)
+    #             self.up_bias_sum[layer_idx].append(self.cur_adapter[layer_idx].up_proj.bias.data)
+
     def sum_adapter_param(self):      
-        for layer_idx in range(len(self.blocks)):
-            if len(self.down_weight_sum[layer_idx]) > 0:
-                self.down_weight_sum[layer_idx].append(self.cur_adapter[layer_idx].down_proj.weight.data + self.down_weight_sum[layer_idx][-1])
-                self.down_bias_sum[layer_idx].append(self.cur_adapter[layer_idx].down_proj.bias.data + self.down_bias_sum[layer_idx][-1])
-                self.up_weight_sum[layer_idx].append(self.cur_adapter[layer_idx].up_proj.weight.data + self.up_weight_sum[layer_idx][-1])
-                self.up_bias_sum[layer_idx].append(self.cur_adapter[layer_idx].up_proj.bias.data + self.up_bias_sum[layer_idx][-1])
-            else:
-                self.down_weight_sum[layer_idx].append(self.cur_adapter[layer_idx].down_proj.weight.data)
-                self.down_bias_sum[layer_idx].append(self.cur_adapter[layer_idx].down_proj.bias.data)
-                self.up_weight_sum[layer_idx].append(self.cur_adapter[layer_idx].up_proj.weight.data)
-                self.up_bias_sum[layer_idx].append(self.cur_adapter[layer_idx].up_proj.bias.data)
-    
+    for layer_idx in range(len(self.blocks)):
+        if len(self.down_weight_sum[layer_idx]) > 0:
+            self.down_weight_sum[layer_idx].append(self.cur_adapter[layer_idx].down_proj.weight.data + self.down_weight_sum[layer_idx][-1])
+            self.down_bias_sum[layer_idx].append(self.cur_adapter[layer_idx].down_proj.bias.data + self.down_bias_sum[layer_idx][-1])
+            self.up_weight_sum[layer_idx].append(self.cur_adapter[layer_idx].up_proj.weight.data + self.up_weight_sum[layer_idx][-1])
+            self.up_bias_sum[layer_idx].append(self.cur_adapter[layer_idx].up_proj.bias.data + self.up_bias_sum[layer_idx][-1])
+
+            # Track Attention Weights
+            self.attn_weight_sum[layer_idx].append(self.cur_adapter[layer_idx].attention.in_proj_weight.data + self.attn_weight_sum[layer_idx][-1])
+            self.attn_bias_sum[layer_idx].append(self.cur_adapter[layer_idx].attention.in_proj_bias.data + self.attn_bias_sum[layer_idx][-1])
+            self.attn_out_weight_sum[layer_idx].append(self.cur_adapter[layer_idx].attention.out_proj.weight.data + self.attn_out_weight_sum[layer_idx][-1])
+            self.attn_out_bias_sum[layer_idx].append(self.cur_adapter[layer_idx].attention.out_proj.bias.data + self.attn_out_bias_sum[layer_idx][-1])
+        else:
+            self.down_weight_sum[layer_idx].append(self.cur_adapter[layer_idx].down_proj.weight.data)
+            self.down_bias_sum[layer_idx].append(self.cur_adapter[layer_idx].down_proj.bias.data)
+            self.up_weight_sum[layer_idx].append(self.cur_adapter[layer_idx].up_proj.weight.data)
+            self.up_bias_sum[layer_idx].append(self.cur_adapter[layer_idx].up_proj.bias.data)
+
+            # Initialize Attention Sums
+            self.attn_weight_sum[layer_idx].append(self.cur_adapter[layer_idx].attention.in_proj_weight.data)
+            self.attn_bias_sum[layer_idx].append(self.cur_adapter[layer_idx].attention.in_proj_bias.data)
+            self.attn_out_weight_sum[layer_idx].append(self.cur_adapter[layer_idx].attention.out_proj.weight.data)
+            self.attn_out_bias_sum[layer_idx].append(self.cur_adapter[layer_idx].attention.out_proj.bias.data)
+
     # def reweight_adapter(self, adapter, idx):
     #     # adapter: original adapter
     #     # idx: adapter idx
