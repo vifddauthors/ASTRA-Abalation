@@ -355,7 +355,7 @@ class Learner(BaseLearner):
 
 
     def _init_train(self, train_loader, test_loader, optimizer, scheduler):
-        self.task_selector_optimizer = torch.optim.Adam(self.task_selector.parameters())
+        self.task_selector_optimizer = torch.optim.SGD(self.task_selector.parameters())
         prog_bar = tqdm(range(self.args['tuned_epoch']))
         initial_lambda = 0.1  # Start with a small weight
         lambda_growth = 1.1
