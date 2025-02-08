@@ -23,7 +23,7 @@
     "init_milestones": [10],
     "init_lr_decay": 0.1,
     "reg": 0.1,
-    "adapter_momentum": 0.1,
+    "adapter_momentum": 0.5,
     "ensemble": true,
 
     "crct_epochs": 15,
