@@ -910,7 +910,7 @@ class Learner(BaseLearner):
         print(f"Time taken for _eval_cnn: {elapsed_time:.4f} seconds")
         print(f"Average time for _eval_cnn calls: {avg_time:.4f} seconds")
         logging.info("The accuracy of the original model: {}".format(np.around(orig_acc, 2)))
-    
+        print("The accuracy of the original model: {}".format(np.around(orig_acc, 2)))
         return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
 
 
