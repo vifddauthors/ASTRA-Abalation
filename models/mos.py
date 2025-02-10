@@ -121,7 +121,7 @@ class MemoryTaskSelector(nn.Module):
         """
         Logs how often each adapter is selected during inference.
         """
-        unique, counts = torch.unique(adapter_idx.cpu(), return_counts=True)
+        unique, counts = torch.unique(adapter_idx, return_counts=True)
         for idx, count in zip(unique.tolist(), counts.tolist()):
             self.adapter_counts[idx] += count
 
