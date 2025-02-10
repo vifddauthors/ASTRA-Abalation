@@ -15,9 +15,6 @@ import time
 
 # tune the model at first session with vpt, and then conduct simple shot.
 num_workers = 8
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 from collections import defaultdict
 
 class MemoryTaskSelector(nn.Module):
