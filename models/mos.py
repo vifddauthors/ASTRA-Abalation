@@ -15,48 +15,145 @@ import time
 
 # tune the model at first session with vpt, and then conduct simple shot.
 num_workers = 8
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from collections import defaultdict
 
 class MemoryTaskSelector(nn.Module):
-    def __init__(self, feature_dim, num_tasks, hidden_dim=128, device="cuda"):
+    def __init__(self, feature_dim, num_tasks, hidden_dim=128, temperature=0.07, device="cuda"):
         super().__init__()
         self.num_tasks = num_tasks
         self.feature_dim = feature_dim
         self.device = device  # Store device information
+        self.temperature = temperature  # Contrastive loss temperature
 
-        # 🔹 Move memory to the correct device
-        self.memory = nn.Parameter(torch.randn(num_tasks, feature_dim).to(device))  # Move memory to device
+        # 🔹 Memory Storage for Tasks
+        self.memory = nn.Parameter(torch.randn(num_tasks, feature_dim).to(device))  # Task memory
 
-        # 🔹 Task Selector Network (MLP)
+        # 🔹 Attention-Based Task Selector
+        self.attention = nn.MultiheadAttention(embed_dim=feature_dim, num_heads=4, batch_first=True)
+
+        # 🔹 Task Selection Network
         self.fc = nn.Sequential(
             nn.Linear(feature_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, num_tasks)
-        ).to(device)  # Move model to the correct device
+        ).to(device)
+
+        # 🔹 Adapter Selection Logging (For Inference)
+        self.adapter_counts = defaultdict(int)  # Counts how often each adapter is selected
 
     def forward(self, features, task_id=None):
         """
         Args:
             features (torch.Tensor): Input feature representation [B, feature_dim]
-            task_id (int, optional): If given, uses memory regularization for this task
+            task_id (int, optional): If given, uses contrastive memory regularization
         
         Returns:
             torch.Tensor: Task probabilities (shape [B, num_tasks])
-            torch.Tensor (optional): Memory loss for regularization
+            torch.Tensor (optional): Contrastive loss for training
         """
-        # 🔹 Ensure `features` is on the correct device
         features = features.to(self.device)
-    
-        # 🔹 Predict task probabilities
-        task_logits = self.fc(features)  # Shape: [B, num_tasks]
+
+        # 🔹 Apply Attention: The memory vectors act as keys/values, and the features as queries
+        attended_features, _ = self.attention(features.unsqueeze(1),  # Query
+                                              self.memory.unsqueeze(0).expand(features.shape[0], -1, -1),  # Key
+                                              self.memory.unsqueeze(0).expand(features.shape[0], -1, -1))  # Value
+
+        # 🔹 Task Probability Prediction
+        task_logits = self.fc(attended_features.squeeze(1))  # Shape: [B, num_tasks]
         task_probs = F.softmax(task_logits, dim=-1)  
-    
-        # 🔹 Memory Regularization (Only in Training)
+
+        # 🔹 Contrastive Loss (Only in Training)
         if task_id is not None:
-            # 🔹 Expand memory vector to match batch size
-            memory_loss = F.mse_loss(features, self.memory[task_id].unsqueeze(0).expand_as(features).to(self.device))
-            return task_probs, memory_loss
+            contrastive_loss = self.compute_contrastive_loss(features, task_id)
+            return task_probs, contrastive_loss
         else:
             return task_probs  # Only return probabilities in inference
+
+    def compute_contrastive_loss(self, features, task_labels):
+        """
+        Contrastive loss to ensure task embeddings remain distinct.
+        Args:
+            features: Tensor of shape [B, feature_dim]
+            task_labels: Tensor of shape [B] indicating task indices
+        
+        Returns:
+            contrastive_loss: Scalar contrastive loss value
+        """
+        batch_size = features.shape[0]
+        loss = 0
+
+        for i in range(batch_size):
+            for j in range(batch_size):
+                if i == j:
+                    continue  # Skip self-comparison
+                
+                if task_labels[i] == task_labels[j]:  # Same task, bring closer
+                    loss += (1 - F.cosine_similarity(features[i], features[j], dim=0))
+                else:  # Different tasks, push apart
+                    loss += max(0, F.cosine_similarity(features[i], features[j], dim=0) - self.temperature)
+
+        return loss / (batch_size ** 2)
+
+    def log_adapter_usage(self, adapter_idx):
+        """
+        Logs how often each adapter is selected during inference.
+        """
+        unique, counts = torch.unique(adapter_idx.cpu(), return_counts=True)
+        for idx, count in zip(unique.tolist(), counts.tolist()):
+            self.adapter_counts[idx] += count
+
+    def print_adapter_usage(self):
+        """
+        Prints the adapter selection frequencies at the end of inference.
+        """
+        print("\n🔹 Adapter Selection Counts:")
+        for adapter, count in sorted(self.adapter_counts.items()):
+            print(f"Adapter {adapter}: {count} times selected")
+
+# class MemoryTaskSelector(nn.Module):
+#     def __init__(self, feature_dim, num_tasks, hidden_dim=128, device="cuda"):
+#         super().__init__()
+#         self.num_tasks = num_tasks
+#         self.feature_dim = feature_dim
+#         self.device = device  # Store device information
+
+#         # 🔹 Move memory to the correct device
+#         self.memory = nn.Parameter(torch.randn(num_tasks, feature_dim).to(device))  # Move memory to device
+
+#         # 🔹 Task Selector Network (MLP)
+#         self.fc = nn.Sequential(
+#             nn.Linear(feature_dim, hidden_dim),
+#             nn.ReLU(),
+#             nn.Linear(hidden_dim, num_tasks)
+#         ).to(device)  # Move model to the correct device
+
+#     def forward(self, features, task_id=None):
+#         """
+#         Args:
+#             features (torch.Tensor): Input feature representation [B, feature_dim]
+#             task_id (int, optional): If given, uses memory regularization for this task
+        
+#         Returns:
+#             torch.Tensor: Task probabilities (shape [B, num_tasks])
+#             torch.Tensor (optional): Memory loss for regularization
+#         """
+#         # 🔹 Ensure `features` is on the correct device
+#         features = features.to(self.device)
+    
+#         # 🔹 Predict task probabilities
+#         task_logits = self.fc(features)  # Shape: [B, num_tasks]
+#         task_probs = F.softmax(task_logits, dim=-1)  
+    
+#         # 🔹 Memory Regularization (Only in Training)
+#         if task_id is not None:
+#             # 🔹 Expand memory vector to match batch size
+#             memory_loss = F.mse_loss(features, self.memory[task_id].unsqueeze(0).expand_as(features).to(self.device))
+#             return task_probs, memory_loss
+#         else:
+#             return task_probs  # Only return probabilities in inference
 
 
 
@@ -857,6 +954,7 @@ class Learner(BaseLearner):
                             if int(adapter_indices[i, j].item()) <0 or int(adapter_indices[i, j].item())>self._cur_task:
                                 continue
                             adapter_id = int(adapter_indices[i, j].item())
+                            self.task_selector.log_adapter_usage(adapter_id)
                             selected_features = self._network.backbone(
                                 inputs[i].unsqueeze(0),  
                                 adapter_id=adapter_id,  
@@ -910,6 +1008,7 @@ class Learner(BaseLearner):
         print(f"Time taken for _eval_cnn: {elapsed_time:.4f} seconds")
         print(f"Average time for _eval_cnn calls: {avg_time:.4f} seconds")
         logging.info("The accuracy of the original model: {}".format(np.around(orig_acc, 2)))
+        self.task_selector.print_adapter_usage()
         print("The accuracy of the original model: {}".format(np.around(orig_acc, 2)))
         return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
 
