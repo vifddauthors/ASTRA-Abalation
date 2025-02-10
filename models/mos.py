@@ -28,11 +28,11 @@ class MemoryTaskSelector(nn.Module):
         self.device = device  # Store device information
         self.temperature = temperature  # Contrastive loss temperature
 
-        # 🔹 Memory Storage for Tasks
+        # 🔹 Move memory to the correct device
         self.memory = nn.Parameter(torch.randn(num_tasks, feature_dim).to(device))  # Task memory
 
         # 🔹 Attention-Based Task Selector
-        self.attention = nn.MultiheadAttention(embed_dim=feature_dim, num_heads=4, batch_first=True)
+        self.attention = nn.MultiheadAttention(embed_dim=feature_dim, num_heads=4, batch_first=True).to(device)
 
         # 🔹 Task Selection Network
         self.fc = nn.Sequential(
@@ -54,12 +54,16 @@ class MemoryTaskSelector(nn.Module):
             torch.Tensor: Task probabilities (shape [B, num_tasks])
             torch.Tensor (optional): Contrastive loss for training
         """
+        # 🔹 Move everything to the correct device
         features = features.to(self.device)
+        self.memory = self.memory.to(self.device)  # Ensure memory is on the same device
 
         # 🔹 Apply Attention: The memory vectors act as keys/values, and the features as queries
-        attended_features, _ = self.attention(features.unsqueeze(1),  # Query
-                                              self.memory.unsqueeze(0).expand(features.shape[0], -1, -1),  # Key
-                                              self.memory.unsqueeze(0).expand(features.shape[0], -1, -1))  # Value
+        attended_features, _ = self.attention(
+            features.unsqueeze(1),  # Query
+            self.memory.unsqueeze(0).expand(features.shape[0], -1, -1),  # Key
+            self.memory.unsqueeze(0).expand(features.shape[0], -1, -1)   # Value
+        )
 
         # 🔹 Task Probability Prediction
         task_logits = self.fc(attended_features.squeeze(1))  # Shape: [B, num_tasks]
@@ -112,7 +116,6 @@ class MemoryTaskSelector(nn.Module):
         print("\n🔹 Adapter Selection Counts:")
         for adapter, count in sorted(self.adapter_counts.items()):
             print(f"Adapter {adapter}: {count} times selected")
-
 # class MemoryTaskSelector(nn.Module):
 #     def __init__(self, feature_dim, num_tasks, hidden_dim=128, device="cuda"):
 #         super().__init__()
