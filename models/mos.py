@@ -17,15 +17,19 @@ import time
 num_workers = 8
 from collections import defaultdict
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from collections import defaultdict
+
 class MemoryTaskSelector(nn.Module):
-    def __init__(self, feature_dim, num_tasks, hidden_dim=128, temperature=0.07, device="cuda"):
+    def __init__(self, feature_dim, num_tasks, hidden_dim=128, device="cuda"):
         super().__init__()
         self.num_tasks = num_tasks
         self.feature_dim = feature_dim
         self.device = device  # Store device information
-        self.temperature = temperature  # Contrastive loss temperature
 
-        # 🔹 Task Memory (For Attention)
+        # 🔹 Task Memory (Fixed Memory for Each Task)
         self.memory = nn.Parameter(torch.randn(num_tasks, feature_dim).to(device))  
 
         # 🔹 Attention-Based Task Selector
@@ -38,18 +42,18 @@ class MemoryTaskSelector(nn.Module):
             nn.Linear(hidden_dim, num_tasks)
         ).to(device)
 
-        # 🔹 Contrastive Memory Bank (Stores old task embeddings)
-        self.memory_bank = {t: [] for t in range(num_tasks)}  # Dictionary to store past task embeddings
+        # 🔹 Adapter Selection Logging (For Inference)
+        self.adapter_counts = defaultdict(int)  # Counts how often each adapter is selected
 
     def forward(self, features, task_id=None):
         """
         Args:
             features (torch.Tensor): Input feature representation [B, feature_dim]
-            task_id (int, optional): If given, uses contrastive memory regularization
+            task_id (int, optional): If given, applies memory regularization.
         
         Returns:
             torch.Tensor: Task probabilities (shape [B, num_tasks])
-            torch.Tensor (optional): Contrastive loss for training
+            torch.Tensor (optional): Memory loss for regularization.
         """
         # 🔹 Move everything to the correct device
         features = features.to(self.device)
@@ -66,58 +70,22 @@ class MemoryTaskSelector(nn.Module):
         task_logits = self.fc(attended_features.squeeze(1))  # Shape: [B, num_tasks]
         task_probs = F.softmax(task_logits, dim=-1)  
 
-        # 🔹 Contrastive Loss (Only in Training)
+        # 🔹 Memory Loss (Only in Training)
         if task_id is not None:
-            contrastive_loss = 0#self.compute_contrastive_loss(features, task_id)
-            return task_probs, contrastive_loss
+            memory_loss = F.mse_loss(features, self.memory[task_id].unsqueeze(0).expand_as(features))
+            return task_probs, memory_loss
         else:
             return task_probs  # Only return probabilities in inference
-
-    def compute_contrastive_loss(self, features, task_id):
-        """
-        Contrastive loss using memory bank to store past task embeddings.
-        Args:
-            features: Tensor of shape [B, feature_dim]
-            task_id: Integer indicating the current task ID.
-        
-        Returns:
-            contrastive_loss: Scalar contrastive loss value
-        """
-        batch_size = features.shape[0]
-        loss = 0
-
-        # 🔹 Step 1: Retrieve past task embeddings from memory bank
-        negative_features = []
-        for t in range(self.num_tasks):
-            if t != task_id and len(self.memory_bank[t]) > 0:
-                negative_features.append(torch.stack(self.memory_bank[t]))
-
-        if len(negative_features) > 0:
-            negative_features = torch.cat(negative_features, dim=0).to(self.device)  # Shape [N_neg, feature_dim]
-        else:
-            negative_features = None  # No negatives if first task
-
-        # 🔹 Step 2: Compute Contrastive Loss
-        for i in range(batch_size):
-            # Same-task (positive) loss
-            for j in range(batch_size):
-                if i != j:
-                    loss += (1 - F.cosine_similarity(features[i], features[j], dim=0))
-
-            # Different-task (negative) loss
-            if negative_features is not None:
-                for neg_feat in negative_features:
-                    loss += max(0, F.cosine_similarity(features[i], neg_feat, dim=0) - self.temperature)
-
-        # 🔹 Step 3: Store Current Task Features in Memory
-        self.memory_bank[task_id].extend(features.detach().cpu())  # Store as list for easy retrieval
-
-        return loss / (batch_size ** 2)
 
     def log_adapter_usage(self, adapter_idx):
         """
         Logs how often each adapter is selected during inference.
         """
+        if isinstance(adapter_idx, int):  # Convert single integer to a tensor
+            adapter_idx = torch.tensor([adapter_idx], device=self.device)
+        elif not isinstance(adapter_idx, torch.Tensor):
+            adapter_idx = torch.tensor(adapter_idx, device=self.device)
+
         unique, counts = torch.unique(adapter_idx, return_counts=True)
         for idx, count in zip(unique.tolist(), counts.tolist()):
             self.adapter_counts[idx] += count
@@ -129,6 +97,7 @@ class MemoryTaskSelector(nn.Module):
         print("\n🔹 Adapter Selection Counts:")
         for adapter, count in sorted(self.adapter_counts.items()):
             print(f"Adapter {adapter}: {count} times selected")
+
 # class MemoryTaskSelector(nn.Module):
 #     def __init__(self, feature_dim, num_tasks, hidden_dim=128, device="cuda"):
 #         super().__init__()
