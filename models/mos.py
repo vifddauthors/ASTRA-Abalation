@@ -68,7 +68,7 @@ class MemoryTaskSelector(nn.Module):
 
         # 🔹 Contrastive Loss (Only in Training)
         if task_id is not None:
-            contrastive_loss = self.compute_contrastive_loss(features, task_id)
+            contrastive_loss = 0#self.compute_contrastive_loss(features, task_id)
             return task_probs, contrastive_loss
         else:
             return task_probs  # Only return probabilities in inference
