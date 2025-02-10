@@ -973,7 +973,7 @@ class Learner(BaseLearner):
                             if int(adapter_indices[i, j].item()) <0 or int(adapter_indices[i, j].item())>self._cur_task:
                                 continue
                             adapter_id = int(adapter_indices[i, j].item())
-                            self.task_selector.log_adapter_usage(adapter_id)
+                            # self.task_selector.log_adapter_usage(adapter_id)
                             selected_features = self._network.backbone(
                                 inputs[i].unsqueeze(0),  
                                 adapter_id=adapter_id,  
@@ -1027,7 +1027,7 @@ class Learner(BaseLearner):
         print(f"Time taken for _eval_cnn: {elapsed_time:.4f} seconds")
         print(f"Average time for _eval_cnn calls: {avg_time:.4f} seconds")
         logging.info("The accuracy of the original model: {}".format(np.around(orig_acc, 2)))
-        self.task_selector.print_adapter_usage()
+        # self.task_selector.print_adapter_usage()
         print("The accuracy of the original model: {}".format(np.around(orig_acc, 2)))
         return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
 
