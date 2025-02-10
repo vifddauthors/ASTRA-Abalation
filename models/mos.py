@@ -28,8 +28,8 @@ class MemoryTaskSelector(nn.Module):
         self.device = device  # Store device information
         self.temperature = temperature  # Contrastive loss temperature
 
-        # 🔹 Move memory to the correct device
-        self.memory = nn.Parameter(torch.randn(num_tasks, feature_dim).to(device))  # Task memory
+        # 🔹 Task Memory (For Attention)
+        self.memory = nn.Parameter(torch.randn(num_tasks, feature_dim).to(device))  
 
         # 🔹 Attention-Based Task Selector
         self.attention = nn.MultiheadAttention(embed_dim=feature_dim, num_heads=4, batch_first=True).to(device)
@@ -41,8 +41,8 @@ class MemoryTaskSelector(nn.Module):
             nn.Linear(hidden_dim, num_tasks)
         ).to(device)
 
-        # 🔹 Adapter Selection Logging (For Inference)
-        self.adapter_counts = defaultdict(int)  # Counts how often each adapter is selected
+        # 🔹 Contrastive Memory Bank (Stores old task embeddings)
+        self.memory_bank = {t: [] for t in range(num_tasks)}  # Dictionary to store past task embeddings
 
     def forward(self, features, task_id=None):
         """
@@ -76,12 +76,12 @@ class MemoryTaskSelector(nn.Module):
         else:
             return task_probs  # Only return probabilities in inference
 
-    def compute_contrastive_loss(self, features, task_labels):
+    def compute_contrastive_loss(self, features, task_id):
         """
-        Contrastive loss to ensure task embeddings remain distinct.
+        Contrastive loss using memory bank to store past task embeddings.
         Args:
             features: Tensor of shape [B, feature_dim]
-            task_labels: Tensor of shape [B] indicating task indices
+            task_id: Integer indicating the current task ID.
         
         Returns:
             contrastive_loss: Scalar contrastive loss value
@@ -89,15 +89,31 @@ class MemoryTaskSelector(nn.Module):
         batch_size = features.shape[0]
         loss = 0
 
+        # 🔹 Step 1: Retrieve past task embeddings from memory bank
+        negative_features = []
+        for t in range(self.num_tasks):
+            if t != task_id and len(self.memory_bank[t]) > 0:
+                negative_features.append(torch.stack(self.memory_bank[t]))
+
+        if len(negative_features) > 0:
+            negative_features = torch.cat(negative_features, dim=0).to(self.device)  # Shape [N_neg, feature_dim]
+        else:
+            negative_features = None  # No negatives if first task
+
+        # 🔹 Step 2: Compute Contrastive Loss
         for i in range(batch_size):
+            # Same-task (positive) loss
             for j in range(batch_size):
-                if i == j:
-                    continue  # Skip self-comparison
-                
-                if task_labels[i] == task_labels[j]:  # Same task, bring closer
+                if i != j:
                     loss += (1 - F.cosine_similarity(features[i], features[j], dim=0))
-                else:  # Different tasks, push apart
-                    loss += max(0, F.cosine_similarity(features[i], features[j], dim=0) - self.temperature)
+
+            # Different-task (negative) loss
+            if negative_features is not None:
+                for neg_feat in negative_features:
+                    loss += max(0, F.cosine_similarity(features[i], neg_feat, dim=0) - self.temperature)
+
+        # 🔹 Step 3: Store Current Task Features in Memory
+        self.memory_bank[task_id].extend(features.detach().cpu())  # Store as list for easy retrieval
 
         return loss / (batch_size ** 2)
 
