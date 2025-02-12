@@ -903,6 +903,101 @@ class Learner(BaseLearner):
     #     logging.info("The accuracy of the original model: {}".format(np.around(orig_acc, 2)))
     
     #     return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
+    # def _eval_cnn(self, loader):
+    #     start_time = time.time()
+    #     self._network.eval()
+    #     self.task_selector.eval()
+    
+    #     y_pred, y_true = [], []
+    #     orig_y_pred = []
+    
+    #     for _, (_, inputs, targets) in enumerate(loader):
+    #         inputs = inputs.to(self._device)
+    #         with torch.no_grad():
+    #             # 🔹 Step 1: Get Predictions from Adapter 0 (Baseline)
+    #             orig_logits = self._network.forward_orig(inputs)["logits"][:, :self._total_classes]
+    #             orig_preds = torch.max(orig_logits, dim=1)[1].cpu().numpy()
+    #             orig_y_pred.append(orig_preds)
+    
+    #             # 🔹 Step 2: Extract Shared Features
+    #             shared_features = self._network.backbone(inputs)["features"]
+    
+    #             # 🔹 Step 3: Use Task Selector to Get Top-3 Adapters
+    #             task_probs = self.task_selector(shared_features)  # Shape: [B, num_tasks]
+    #             topk_adapters = torch.topk(task_probs, k=3, dim=1)  # Get top-3 adapters
+    #             adapter_indices = topk_adapters.indices  # Shape: [batch_size, 3]
+    #             adapter_probs = topk_adapters.values  # Shape: [batch_size, 3]
+    #             # print(topk_adapters)
+    #             # print(adapter_indices)
+    #             # print(adapter_probs)
+    #             # 🔹 Step 4: Extract Features Using the Selected Adapter(s)
+    #             logits_list = []
+    #             for i in range(inputs.shape[0]):  # Iterate over the batch
+    #                 if self.ensemble:
+    #                     sample_logits = []
+    #                     for j in range(3):  # Top-3 adapters
+    #                         if int(adapter_indices[i, j].item()) <0 or int(adapter_indices[i, j].item())>self._cur_task:
+    #                             continue
+    #                         adapter_id = int(adapter_indices[i, j].item())
+    #                         # self.task_selector.log_adapter_usage(adapter_id)
+    #                         selected_features = self._network.backbone(
+    #                             inputs[i].unsqueeze(0),  
+    #                             adapter_id=adapter_id,  
+    #                             train=False
+    #                         )["features"]
+    
+    #                         logits = self._network.backbone(selected_features, fc_only=True)["logits"][:, :self._total_classes]
+    #                         sample_logits.append(logits)
+                        
+    #                     # 🔹 Weighted sum of top-3 adapters
+    #                     logits_stack = torch.stack(sample_logits, dim=0)
+    #                     k_valid = logits_stack.shape[0]  # Get the actual number of valid adapters
+    #                     weighted_logits = (logits_stack * adapter_probs[i, :k_valid].view(k_valid, 1, 1)).sum(dim=0)
+    #                     # logits_stack = torch.stack(sample_logits, dim=0)  
+    #                     # weighted_logits = (logits_stack * adapter_probs[i].view(3, 1, 1)).sum(dim=0)  
+    #                     logits_list.append(weighted_logits)
+    #                 else:
+    #                     # 🔹 Only use the highest-confidence adapter
+    #                     adapter_id = int(adapter_indices[i, 0].item())  # Pick the top-1 adapter
+    #                     selected_features = self._network.backbone(
+    #                         inputs[i].unsqueeze(0),  
+    #                         adapter_id=adapter_id,  
+    #                         train=False
+    #                     )["features"]
+    
+    #                     logits = self._network.backbone(selected_features, fc_only=True)["logits"][:, :self._total_classes]
+    #                     logits_list.append(logits)
+    
+    #             # 🔹 Stack logits to reconstruct the batch
+    #             final_logits = torch.cat(logits_list, dim=0).to(self._device)
+    
+    #             # 🔹 Step 5: Apply Softmax if Ensembling
+    #             if self.ensemble:
+    #                 final_logits = F.softmax(final_logits, dim=1)
+    #             outputs = final_logits
+    
+    #         # 🔹 Step 6: Get Final Predictions
+    #         predicts = torch.topk(outputs, k=self.topk, dim=1, largest=True, sorted=True)[1]
+    #         y_pred.append(predicts.cpu().numpy())
+    #         y_true.append(targets.cpu().numpy())
+    
+    #     # 🔹 Step 7: Compute Original Model Accuracy
+    #     orig_acc = (np.concatenate(orig_y_pred) == np.concatenate(y_true)).sum() * 100 / len(np.concatenate(y_true))
+        
+    #     # 🔹 Store execution time and calculate average
+    #     end_time = time.time()
+    #     elapsed_time = end_time - start_time
+    #     self.eval_cnn_times.append(elapsed_time)
+    #     avg_time = sum(self.eval_cnn_times) / len(self.eval_cnn_times)
+    
+    #     print(f"Time taken for _eval_cnn: {elapsed_time:.4f} seconds")
+    #     print(f"Average time for _eval_cnn calls: {avg_time:.4f} seconds")
+    #     logging.info("The accuracy of the original model: {}".format(np.around(orig_acc, 2)))
+    #     # self.task_selector.print_adapter_usage()
+    #     print("The accuracy of the original model: {}".format(np.around(orig_acc, 2)))
+    #     return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
+    
+    
     def _eval_cnn(self, loader):
         start_time = time.time()
         self._network.eval()
@@ -916,8 +1011,15 @@ class Learner(BaseLearner):
             with torch.no_grad():
                 # 🔹 Step 1: Get Predictions from Adapter 0 (Baseline)
                 orig_logits = self._network.forward_orig(inputs)["logits"][:, :self._total_classes]
+                orig_probs = F.softmax(orig_logits, dim=1)  # Convert to probabilities
                 orig_preds = torch.max(orig_logits, dim=1)[1].cpu().numpy()
                 orig_y_pred.append(orig_preds)
+    
+                # 🔹 Print top-5 class probabilities BEFORE refinement
+                top5_orig_probs, top5_orig_classes = torch.topk(orig_probs, k=5, dim=1)
+                print("\n🔹 Top-5 Class Probabilities BEFORE Refinement:")
+                for i in range(inputs.shape[0]):
+                    print(f"Sample {i}: Classes {top5_orig_classes[i].cpu().numpy()}, Probabilities {top5_orig_probs[i].cpu().numpy()}")
     
                 # 🔹 Step 2: Extract Shared Features
                 shared_features = self._network.backbone(inputs)["features"]
@@ -927,19 +1029,17 @@ class Learner(BaseLearner):
                 topk_adapters = torch.topk(task_probs, k=3, dim=1)  # Get top-3 adapters
                 adapter_indices = topk_adapters.indices  # Shape: [batch_size, 3]
                 adapter_probs = topk_adapters.values  # Shape: [batch_size, 3]
-                # print(topk_adapters)
-                # print(adapter_indices)
-                # print(adapter_probs)
+    
                 # 🔹 Step 4: Extract Features Using the Selected Adapter(s)
                 logits_list = []
                 for i in range(inputs.shape[0]):  # Iterate over the batch
                     if self.ensemble:
                         sample_logits = []
                         for j in range(3):  # Top-3 adapters
-                            if int(adapter_indices[i, j].item()) <0 or int(adapter_indices[i, j].item())>self._cur_task:
+                            if int(adapter_indices[i, j].item()) < 0 or int(adapter_indices[i, j].item()) > self._cur_task:
                                 continue
                             adapter_id = int(adapter_indices[i, j].item())
-                            # self.task_selector.log_adapter_usage(adapter_id)
+    
                             selected_features = self._network.backbone(
                                 inputs[i].unsqueeze(0),  
                                 adapter_id=adapter_id,  
@@ -948,13 +1048,11 @@ class Learner(BaseLearner):
     
                             logits = self._network.backbone(selected_features, fc_only=True)["logits"][:, :self._total_classes]
                             sample_logits.append(logits)
-                        
+    
                         # 🔹 Weighted sum of top-3 adapters
                         logits_stack = torch.stack(sample_logits, dim=0)
                         k_valid = logits_stack.shape[0]  # Get the actual number of valid adapters
                         weighted_logits = (logits_stack * adapter_probs[i, :k_valid].view(k_valid, 1, 1)).sum(dim=0)
-                        # logits_stack = torch.stack(sample_logits, dim=0)  
-                        # weighted_logits = (logits_stack * adapter_probs[i].view(3, 1, 1)).sum(dim=0)  
                         logits_list.append(weighted_logits)
                     else:
                         # 🔹 Only use the highest-confidence adapter
@@ -976,25 +1074,43 @@ class Learner(BaseLearner):
                     final_logits = F.softmax(final_logits, dim=1)
                 outputs = final_logits
     
+            # 🔹 Print top-5 class probabilities AFTER refinement
+            refined_probs = F.softmax(outputs, dim=1)  # Convert to probabilities
+            top5_refined_probs, top5_refined_classes = torch.topk(refined_probs, k=5, dim=1)
+            print("\n🔹 Top-5 Class Probabilities AFTER Refinement:")
+            for i in range(inputs.shape[0]):
+                print(f"Sample {i}: Classes {top5_refined_classes[i].cpu().numpy()}, Probabilities {top5_refined_probs[i].cpu().numpy()}")
+    
             # 🔹 Step 6: Get Final Predictions
             predicts = torch.topk(outputs, k=self.topk, dim=1, largest=True, sorted=True)[1]
             y_pred.append(predicts.cpu().numpy())
             y_true.append(targets.cpu().numpy())
     
+            # 🔹 Print y_pred vs y_true for debugging
+            print("\n🔹 Checking Predictions vs Ground Truth:")
+            for i in range(targets.shape[0]):
+                pred_label = predicts[i, 0].item()  # Get the top predicted class
+                true_label = targets[i].item()
+                print(f"Sample {i}: Predicted = {pred_label}, True = {true_label}")
+                if pred_label == true_label:
+                    print("✅ Prediction is CORRECT!")
+                else:
+                    print("❌ Prediction is INCORRECT!")
+    
         # 🔹 Step 7: Compute Original Model Accuracy
         orig_acc = (np.concatenate(orig_y_pred) == np.concatenate(y_true)).sum() * 100 / len(np.concatenate(y_true))
-        
+    
         # 🔹 Store execution time and calculate average
         end_time = time.time()
         elapsed_time = end_time - start_time
         self.eval_cnn_times.append(elapsed_time)
         avg_time = sum(self.eval_cnn_times) / len(self.eval_cnn_times)
     
-        print(f"Time taken for _eval_cnn: {elapsed_time:.4f} seconds")
-        print(f"Average time for _eval_cnn calls: {avg_time:.4f} seconds")
+        print(f"\n⏳ Time taken for _eval_cnn: {elapsed_time:.4f} seconds")
+        print(f"📊 Average time for _eval_cnn calls: {avg_time:.4f} seconds")
         logging.info("The accuracy of the original model: {}".format(np.around(orig_acc, 2)))
-        # self.task_selector.print_adapter_usage()
-        print("The accuracy of the original model: {}".format(np.around(orig_acc, 2)))
+        print("🎯 The accuracy of the original model: {}".format(np.around(orig_acc, 2)))
+    
         return np.concatenate(y_pred), np.concatenate(y_true)  # [N, topk]
-
-
+    
+    
