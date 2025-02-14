@@ -57,7 +57,6 @@ def _train(args):
         args["increment"],
         args,
     )
-    
     args["nb_classes"] = data_manager.nb_classes # update args
     args["nb_tasks"] = data_manager.nb_tasks
     args["class_frequencies"]=data_manager.class_frequencies
@@ -159,6 +158,7 @@ def _set_device(args):
 
 
 def _set_random(seed=1):
+    print(f'seed value: {seed}')
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
