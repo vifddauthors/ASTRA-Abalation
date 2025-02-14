@@ -1047,6 +1047,8 @@ class Learner(BaseLearner):
                         averaged_logits = logits_stack.mean(dim=0)  # Simple mean across adapters
                         logits_list.append(averaged_logits)
                     else:
+                        if int(adapter_indices[i, j].item()) < 0 or int(adapter_indices[i, j].item()) > self._cur_task:
+                            adapter_id=0
                         # 🔹 Only use the highest-confidence adapter
                         adapter_id = int(adapter_indices[i, 0].item())  # Pick the top-1 adapter
                         selected_features = self._network.backbone(
