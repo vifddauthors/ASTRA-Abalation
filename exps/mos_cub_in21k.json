@@ -12,7 +12,7 @@
     "device": ["0"],
     "seed": [1995],
     
-    "tuned_epoch": 20,
+    "tuned_epoch": 10,
     "init_lr": 0.01,
     "batch_size": 32,
     "weight_decay": 0.0005,
