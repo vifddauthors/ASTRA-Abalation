@@ -248,8 +248,9 @@ def _train(args):
                 print("\n### Imbalance Metrics ###")
                 for metric in ["f1_score", "mcc", "kappa", "balanced_accuracy"]:
                     metric_result = model.eval_task(metric)
-                    print(f"{metric.upper()} (CNN):", metric_result[0]["top1"])
-                    imb_curves[metric].append( metric_result[0]["top1"])  # Store for averaging
+                    imb_curves[metric].append( metric_result[0]["top1"]) 
+                    print(f"Average {metric.upper()} (CNN):", sum(imb_curves[metric])/len(imb_curves[metric]))
+                     # Store for averaging
 
     # 🔹 PRINT ACCURACY MATRIX 🔹
     if len(cnn_matrix) > 0:
