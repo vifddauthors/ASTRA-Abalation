@@ -226,10 +226,10 @@ def _train(args):
                 print("\n### Imbalance Metrics ###")
                 for metric in ["f1_score", "mcc", "kappa", "balanced_accuracy"]:
                     metric_result = model.eval_task(metric)
-                    print(f"{metric.upper()} (CNN):", metric_result["top1"])
+                    print(f"{metric.upper()} (CNN):", metric_result[0]["top1"])
                     imb_curves[metric].append(metric_result["top1"])  # Store for averaging
                     if nme_accy is not None:
-                        print(f"{metric.upper()} (NME):", metric_result["top1"])
+                        print(f"{metric.upper()} (NME):", metric_result[0]["top1"])
 
         else:
             logging.info("No NME accuracy.")
@@ -248,7 +248,7 @@ def _train(args):
                 print("\n### Imbalance Metrics ###")
                 for metric in ["f1_score", "mcc", "kappa", "balanced_accuracy"]:
                     metric_result = model.eval_task(metric)
-                    print(f"{metric.upper()} (CNN):", metric_result["top1"])
+                    print(f"{metric.upper()} (CNN):", metric_result[0]["top1"])
                     imb_curves[metric].append(metric_result["top1"])  # Store for averaging
 
     # 🔹 PRINT ACCURACY MATRIX 🔹
