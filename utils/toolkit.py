@@ -176,10 +176,12 @@ def balanced_accuracy_custom(y_pred, y_true, nb_old, init_cls=10, increment=10):
     fn = cm.sum(axis=1) - tp
     fp = cm.sum(axis=0) - tp
     tn = cm.sum() - (tp + fn + fp)
-    
+
     # Handle potential division by zero
-    balanced_accuracy_total = 0.5 * ((tp / (tp + fn)) + (tn / (tn + fp)))
-    balanced_accuracy_total = np.nan_to_num(balanced_accuracy_total, nan=0)  # Replace NaN with 0
+    balanced_accuracy_total = 0.5 * (
+        (tp / np.maximum(tp + fn, np.finfo(float).eps)) +
+        (tn / np.maximum(tn + fp, np.finfo(float).eps))
+    )
     all_balanced_acc["total"] = np.around(np.mean(balanced_accuracy_total), decimals=2)
 
     # Grouped Balanced Accuracy for initial classes
@@ -192,15 +194,17 @@ def balanced_accuracy_custom(y_pred, y_true, nb_old, init_cls=10, increment=10):
         tn_init = cm_init.sum() - (tp_init + fn_init + fp_init)
 
         # Handle potential division by zero
-        balanced_accuracy_init = 0.5 * ((tp_init / (tp_init + fn_init)) + (tn_init / (tn_init + fp_init)))
-        balanced_accuracy_init = np.nan_to_num(balanced_accuracy_init, nan=0)  # Replace NaN with 0
+        balanced_accuracy_init = 0.5 * (
+            (tp_init / np.maximum(tp_init + fn_init, np.finfo(float).eps)) +
+            (tn_init / np.maximum(tn_init + fp_init, np.finfo(float).eps))
+        )
         label_init = "{}-{}".format(str(0).rjust(2, "0"), str(init_cls - 1).rjust(2, "0"))
         all_balanced_acc[label_init] = np.around(np.mean(balanced_accuracy_init), decimals=2)
     else:
-        all_balanced_acc["init"] = 0  # If no data for initial classes, set to 0
+        all_balanced_acc["init"] = 0
 
     # For incremental classes
-    for class_id in range(init_cls, np.max(y_true), increment):
+    for class_id in range(init_cls, np.max(y_true) + 1, increment):
         idxes = np.where(np.logical_and(y_true >= class_id, y_true < class_id + increment))[0]
         if len(idxes) > 0:
             cm_increment = confusion_matrix(y_true[idxes], y_pred[idxes])
@@ -210,12 +214,14 @@ def balanced_accuracy_custom(y_pred, y_true, nb_old, init_cls=10, increment=10):
             tn_increment = cm_increment.sum() - (tp_increment + fn_increment + fp_increment)
 
             # Handle potential division by zero
-            balanced_accuracy_increment = 0.5 * ((tp_increment / (tp_increment + fn_increment)) + (tn_increment / (tn_increment + fp_increment)))
-            balanced_accuracy_increment = np.nan_to_num(balanced_accuracy_increment, nan=0)  # Replace NaN with 0
+            balanced_accuracy_increment = 0.5 * (
+                (tp_increment / np.maximum(tp_increment + fn_increment, np.finfo(float).eps)) +
+                (tn_increment / np.maximum(tn_increment + fp_increment, np.finfo(float).eps))
+            )
             label_increment = "{}-{}".format(str(class_id).rjust(2, "0"), str(class_id + increment - 1).rjust(2, "0"))
             all_balanced_acc[label_increment] = np.around(np.mean(balanced_accuracy_increment), decimals=2)
         else:
-            all_balanced_acc[f"{class_id}-{class_id + increment - 1}"] = 0  # If no data for this increment, set to 0
+            all_balanced_acc[f"{class_id}-{class_id + increment - 1}"] = 0
 
     # Old Balanced Accuracy
     idxes = np.where(y_true < nb_old)[0]
@@ -227,11 +233,13 @@ def balanced_accuracy_custom(y_pred, y_true, nb_old, init_cls=10, increment=10):
         tn_old = cm_old.sum() - (tp_old + fn_old + fp_old)
 
         # Handle potential division by zero
-        balanced_accuracy_old = 0.5 * ((tp_old / (tp_old + fn_old)) + (tn_old / (tn_old + fp_old)))
-        balanced_accuracy_old = np.nan_to_num(balanced_accuracy_old, nan=0)  # Replace NaN with 0
+        balanced_accuracy_old = 0.5 * (
+            (tp_old / np.maximum(tp_old + fn_old, np.finfo(float).eps)) +
+            (tn_old / np.maximum(tn_old + fp_old, np.finfo(float).eps))
+        )
         all_balanced_acc["old"] = np.around(np.mean(balanced_accuracy_old), decimals=2)
     else:
-        all_balanced_acc["old"] = 0  # No data for old classes, set to 0
+        all_balanced_acc["old"] = 0
 
     # New Balanced Accuracy
     idxes = np.where(y_true >= nb_old)[0]
@@ -243,13 +251,16 @@ def balanced_accuracy_custom(y_pred, y_true, nb_old, init_cls=10, increment=10):
         tn_new = cm_new.sum() - (tp_new + fn_new + fp_new)
 
         # Handle potential division by zero
-        balanced_accuracy_new = 0.5 * ((tp_new / (tp_new + fn_new)) + (tn_new / (tn_new + fp_new)))
-        balanced_accuracy_new = np.nan_to_num(balanced_accuracy_new, nan=0)  # Replace NaN with 0
+        balanced_accuracy_new = 0.5 * (
+            (tp_new / np.maximum(tp_new + fn_new, np.finfo(float).eps)) +
+            (tn_new / np.maximum(tn_new + fp_new, np.finfo(float).eps))
+        )
         all_balanced_acc["new"] = np.around(np.mean(balanced_accuracy_new), decimals=2)
     else:
-        all_balanced_acc["new"] = 0  # No data for new classes, set to 0
+        all_balanced_acc["new"] = 0
 
     return all_balanced_acc
+
 
 
 def split_images_labels(imgs):
