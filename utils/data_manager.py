@@ -254,7 +254,7 @@ def _get_idata(dataset_name, args=None):
     elif name == "cub":
         return CUB()
     elif name == "cub_imbalanced":
-        return CUB_imbalanced()
+        return CUB_imbalanced(args)
     elif name == "objectnet_imbalanced":
         return objectnet_imbalanced()
     elif name == "objectnet":
