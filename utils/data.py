@@ -180,7 +180,8 @@ class iCIFAR224_imbalanced(iData):
         # Apply class imbalance to the training data
         self.apply_class_imbalance()
 
-    def apply_class_imbalance(self):
+    def apply_class_imbalance(self): 
+        np.random.seed(1993)
         if self.imbalance_classes is None:
             # Select a subset of classes to imbalance
             num_classes = len(set(self.train_targets))
@@ -340,7 +341,8 @@ class iImageNetR_imbalanced(iData):
         # Apply class imbalance to the training data
         self.apply_class_imbalance()
 
-    def apply_class_imbalance(self):
+    def apply_class_imbalance(self): 
+        np.random.seed(1993)
         if self.imbalance_classes is None:
             # Select a subset of classes to imbalance
             num_classes = len(set(self.train_targets))
@@ -453,7 +455,8 @@ class CUB_imbalanced(iData):
         # Apply class imbalance to the training data
         self.apply_class_imbalance()
 
-    def apply_class_imbalance(self):
+    def apply_class_imbalance(self): 
+        np.random.seed(1993)
         if self.imbalance_classes is None:
             # Select a subset of classes to imbalance
             num_classes = len(set(self.train_targets))
@@ -546,7 +549,8 @@ class objectnet_imbalanced(iData):
         # Apply class imbalance to the training data
         self.apply_class_imbalance()
 
-    def apply_class_imbalance(self):
+    def apply_class_imbalance(self): 
+        np.random.seed(1993)
         if self.imbalance_classes is None:
             # Select a subset of classes to imbalance
             num_classes = len(set(self.train_targets))
@@ -639,7 +643,8 @@ class omnibenchmark_imbalanced(iData):
         # Apply class imbalance to the training data
         self.apply_class_imbalance()
 
-    def apply_class_imbalance(self):
+    def apply_class_imbalance(self): 
+        np.random.seed(1993)
         if self.imbalance_classes is None:
             # Select a subset of classes to imbalance
             num_classes = len(set(self.train_targets))
@@ -734,7 +739,8 @@ class vtab_imbalanced(iData):
         # Apply class imbalance to the training data
         self.apply_class_imbalance()
 
-    def apply_class_imbalance(self):
+    def apply_class_imbalance(self): 
+        np.random.seed(1993)
         if self.imbalance_classes is None:
             # Select a subset of classes to imbalance
             num_classes = len(set(self.train_targets))
