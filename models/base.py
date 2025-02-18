@@ -113,6 +113,58 @@ class BaseLearner(object):
 
         return ret
 
+    
+    def _evaluate_f1(self, y_pred, y_true):
+        ret = {}
+        grouped = f1_score_custom(y_pred.T[0], y_true, self._known_classes, self.args["init_cls"], self.args["increment"])
+        ret["grouped"] = grouped
+        ret["top1"] = grouped["total"]
+        ret["top{}".format(self.topk)] = np.around(
+            (y_pred.T == np.tile(y_true, (self.topk, 1))).sum() * 100 / len(y_true),
+            decimals=2,
+        )
+
+        return ret
+
+    
+    def _evaluate_mcc(self, y_pred, y_true):
+        ret = {}
+        grouped = mcc_score_custom(y_pred.T[0], y_true, self._known_classes, self.args["init_cls"], self.args["increment"])
+        ret["grouped"] = grouped
+        ret["top1"] = grouped["total"]
+        ret["top{}".format(self.topk)] = np.around(
+            (y_pred.T == np.tile(y_true, (self.topk, 1))).sum() * 100 / len(y_true),
+            decimals=2,
+        )
+
+        return ret
+
+    
+    def _evaluate_kappa(self, y_pred, y_true):
+        ret = {}
+        grouped = kappa_score_custom(y_pred.T[0], y_true, self._known_classes, self.args["init_cls"], self.args["increment"])
+        ret["grouped"] = grouped
+        ret["top1"] = grouped["total"]
+        ret["top{}".format(self.topk)] = np.around(
+            (y_pred.T == np.tile(y_true, (self.topk, 1))).sum() * 100 / len(y_true),
+            decimals=2,
+        )
+
+        return ret
+
+    
+    def _evaluate_bal_acc(self, y_pred, y_true):
+        ret = {}
+        grouped = balanced_accuracy_custom(y_pred.T[0], y_true, self._known_classes, self.args["init_cls"], self.args["increment"])
+        ret["grouped"] = grouped
+        ret["top1"] = grouped["total"]
+        ret["top{}".format(self.topk)] = np.around(
+            (y_pred.T == np.tile(y_true, (self.topk, 1))).sum() * 100 / len(y_true),
+            decimals=2,
+        )
+
+        return ret
+
 
     # def _evaluate(self, y_pred, y_true):
     #     ret = {}
