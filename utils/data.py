@@ -170,14 +170,12 @@ class iCIFAR224_imbalanced(iData):
     def download_data(self):
         train_dataset = datasets.cifar.CIFAR100("../data", train=True, download=True)
         test_dataset = datasets.cifar.CIFAR100("../data", train=False, download=True)
-        train_dir = "../data/cifar-100-python/train/"
-        test_dir = "../data/cifar-100-python/test/"
-
-        train_dset = datasets.ImageFolder(train_dir)
-        test_dset = datasets.ImageFolder(test_dir)
-
-        self.train_data, self.train_targets = split_images_labels(train_dset.imgs)
-        self.test_data, self.test_targets = split_images_labels(test_dset.imgs)
+        self.train_data, self.train_targets = train_dataset.data, np.array(
+            train_dataset.targets
+        )
+        self.test_data, self.test_targets = test_dataset.data, np.array(
+            test_dataset.targets
+        )
 
         # Apply class imbalance to the training data
         self.apply_class_imbalance()
