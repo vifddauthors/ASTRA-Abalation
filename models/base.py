@@ -163,9 +163,9 @@ class BaseLearner(object):
     
     #     return ret
 
-    def eval_task(self):
+    def eval_task(self,metric):
         y_pred, y_true = self._eval_cnn(self.test_loader)
-        cnn_accy = self._evaluate(y_pred, y_true)
+        cnn_accy = self._evaluate(y_pred, y_true,metric)
 
         if hasattr(self, "_class_means"):
             y_pred, y_true = self._eval_nme(self.test_loader, self._class_means)
