@@ -249,6 +249,7 @@ def _train(args):
                 for metric in ["f1_score", "mcc", "kappa", "balanced_accuracy"]:
                     metric_result = model.eval_task(metric)
                     imb_curves[metric].append( metric_result[0]["top1"]) 
+                    imb_matrices[metric].append(metric_result[0]["grouped"].values())
                     print(f"Average {metric.upper()} (CNN):", sum(imb_curves[metric])/len(imb_curves[metric]))
                      # Store for averaging
 
