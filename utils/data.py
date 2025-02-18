@@ -151,7 +151,7 @@ class iCIFAR224_imbalanced(iData):
     def __init__(self, args, imbalance_ratio=0.5, imbalance_classes=None):
         super().__init__()
         self.args = args
-        self.use_path = True
+        self.use_path = False
 
         if args["model_name"] == "coda_prompt":
             self.train_trsf = build_transform_coda_prompt(True, args)
