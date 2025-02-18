@@ -13,7 +13,7 @@
     "seed": [1993],
     "imb_metrics":true,
     
-    "tuned_epoch": 2,
+    "tuned_epoch": 20,
     "init_lr": 0.03,
     "batch_size": 48,
     "weight_decay": 0.0005,
@@ -27,7 +27,7 @@
     "adapter_momentum": 0.1,
     "ensemble": true,
 
-    "crct_epochs": 3,
+    "crct_epochs": 30,
     "ca_lr": 0.005,
     "ca_storage_efficient_method": "covariance", 
     "ca_storage_efficient_method_choices": ["covariance", "multi-centroid", "variance"],
