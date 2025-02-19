@@ -628,13 +628,21 @@ class Learner(BaseLearner):
         factor = initial_lambda * (lambda_growth ** self._cur_task)
         print(f'memory_loss_factor: {factor}')
     
-        # 🔹 Compute class frequencies for weighting (ONLY FOR CURRENT EPISODE CLASSES)
-        class_counts = torch.zeros(self._known_classes, device=self._device)  # ✅ Only track known classes in this episode
-    
+        # 🔹 Track only the classes seen in the current episode
+        seen_classes = set()
         for _, _, targets in train_loader:
-            targets = targets.to(self._device)
-            unique_classes, counts = torch.unique(targets, return_counts=True)
-            class_counts[unique_classes] += counts  # ✅ Only count present classes
+            seen_classes.update(targets.tolist())  # Track only seen classes
+    
+        if len(seen_classes) > 0:
+            max_seen_class = max(seen_classes)  # Get the highest seen class index
+            class_counts = torch.zeros(max_seen_class + 1, device=self._device)  # ✅ Ensure size fits seen classes
+    
+            for _, _, targets in train_loader:
+                targets = targets.to(self._device)
+                unique_classes, counts = torch.unique(targets, return_counts=True)
+                class_counts[unique_classes] += counts  # ✅ Now guaranteed to be in bounds
+        else:
+            class_counts = torch.zeros(1, device=self._device)  # Prevents indexing errors
     
         # 🔹 Filter non-zero class counts to avoid min/max errors
         nonzero_class_counts = class_counts[class_counts > 0]
@@ -668,7 +676,7 @@ class Learner(BaseLearner):
     
                 # 🔹 Forward Pass for Main Model
                 output = self._network(inputs, adapter_id=self._cur_task, train=True)
-                logits = output["logits"][:, :self._known_classes]  # ✅ Use only known classes for this episode
+                logits = output["logits"][:, :max_seen_class + 1]  # ✅ Use only known classes for this episode
     
                 # 🔹 Compute Classification Loss
                 if class_weights is not None:
@@ -719,6 +727,7 @@ class Learner(BaseLearner):
             prog_bar.set_description(info)
     
         logging.info(info)
+
 
     @torch.no_grad()
     def _compute_mean(self, model):
