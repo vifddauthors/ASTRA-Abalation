@@ -527,6 +527,99 @@ class Learner(BaseLearner):
     
     #     logging.info(info)
 
+    # def _init_train(self, train_loader, test_loader, optimizer, scheduler):
+    #     self.task_selector_optimizer = torch.optim.SGD(self.task_selector.parameters())
+    #     prog_bar = tqdm(range(self.args['tuned_epoch']))
+    #     initial_lambda = 0.1  # Start with a small weight
+    #     lambda_growth = 1.1
+    #     factor = initial_lambda * (lambda_growth ** self._cur_task)
+    #     print(f'memory_loss_factor: {factor}')
+        
+    #     # Compute class frequencies for weighting
+    #     class_counts = torch.zeros(self._total_classes, device=self._device)
+    #     for _, _, targets in train_loader:
+    #         targets = targets.to(self._device)
+    #         for class_id in range(self._total_classes):
+    #             class_counts[class_id] += (targets == class_id).sum()
+    
+    #     min_count = class_counts[class_counts > 0].min()  # Smallest non-zero class count
+    #     max_count = class_counts.max()
+        
+    #     # Compute class ratio
+    #     class_ratio = min_count / (max_count + 1e-8)
+        
+    #     # Assign class weights if the class ratio is below 0.6
+    #     if class_ratio < 0.6:
+    #         class_weights = (1.0 / (class_counts + 1e-8)).clamp(max=10)  # Prevent extreme weights
+    #         class_weights = class_weights / class_weights.sum()  # Normalize
+    #         print(f"Applying class weights: {class_weights}")
+    #     else:
+    #         class_weights = None  # No weighting needed
+    
+    #     for _, epoch in enumerate(prog_bar):
+    #         self._network.backbone.train()
+    #         self.task_selector.train()  # Ensure task selector is in train mode
+    
+    #         losses = 0.0
+    #         correct, total = 0, 0
+    
+    #         for _, inputs, targets in train_loader:
+    #             inputs, targets = inputs.to(self._device), targets.to(self._device)
+    
+    #             # 🔹 Forward Pass for Main Model
+    #             output = self._network(inputs, adapter_id=self._cur_task, train=True)
+    #             logits = output["logits"][:, :self._total_classes]
+    #             logits[:, :self._known_classes] = float('-inf')
+    
+    #             # 🔹 Compute Classification Loss
+    #             if class_weights is not None:
+    #                 ce_loss = F.cross_entropy(logits, targets.long(), weight=class_weights, reduction='none')
+    #             else:
+    #                 ce_loss = F.cross_entropy(logits, targets.long(), reduction='none')
+    
+    #             loss = ce_loss
+    #             loss += self.orth_loss(output['pre_logits'], targets)  # Add orthogonality loss
+    
+    #             optimizer.zero_grad()
+    #             loss.mean().backward()
+    #             optimizer.step()
+    
+    #             # 🔹 Task Selector Training
+    #             with torch.no_grad():
+    #                 shared_features = self._network.backbone(inputs)["features"].to(self._device)
+    
+    #             task_probs, memory_loss = self.task_selector(shared_features, task_id=self._cur_task)
+    
+    #             task_labels = torch.tensor([self.cls2task[t.item()] for t in targets], device=self._device)
+    #             task_loss = F.cross_entropy(task_probs, task_labels) + factor * memory_loss
+    
+    #             self.task_optimizer.zero_grad()
+    #             task_loss.backward()
+    #             self.task_optimizer.step()
+    
+    #             # 🔹 Compute training accuracy
+    #             _, preds = torch.max(logits, dim=1)
+    #             correct += preds.eq(targets).cpu().sum()
+    #             total += len(targets)
+    
+    #             losses += loss.sum().item()
+    
+    #         if scheduler:
+    #             scheduler.step()
+    #         train_acc = np.around(tensor2numpy(correct) * 100 / total, decimals=2)
+    
+    #         # Logging progress
+    #         info = "Task {}, Epoch {}/{} => Loss {:.3f}, Train_accy {:.2f}".format(
+    #             self._cur_task,
+    #             epoch + 1,
+    #             self.args['tuned_epoch'],
+    #             losses / len(train_loader),
+    #             train_acc,
+    #         )
+    #         prog_bar.set_description(info)
+    
+    #     logging.info(info)
+    
     def _init_train(self, train_loader, test_loader, optimizer, scheduler):
         self.task_selector_optimizer = torch.optim.SGD(self.task_selector.parameters())
         prog_bar = tqdm(range(self.args['tuned_epoch']))
@@ -534,27 +627,34 @@ class Learner(BaseLearner):
         lambda_growth = 1.1
         factor = initial_lambda * (lambda_growth ** self._cur_task)
         print(f'memory_loss_factor: {factor}')
-        
-        # Compute class frequencies for weighting
-        class_counts = torch.zeros(self._total_classes, device=self._device)
+    
+        # 🔹 Compute class frequencies for weighting (ONLY FOR CURRENT EPISODE CLASSES)
+        class_counts = torch.zeros(self._known_classes, device=self._device)  # ✅ Only track known classes in this episode
+    
         for _, _, targets in train_loader:
             targets = targets.to(self._device)
-            for class_id in range(self._total_classes):
-                class_counts[class_id] += (targets == class_id).sum()
+            unique_classes, counts = torch.unique(targets, return_counts=True)
+            class_counts[unique_classes] += counts  # ✅ Only count present classes
     
-        min_count = class_counts[class_counts > 0].min()  # Smallest non-zero class count
-        max_count = class_counts.max()
-        
-        # Compute class ratio
-        class_ratio = min_count / (max_count + 1e-8)
-        
-        # Assign class weights if the class ratio is below 0.6
-        if class_ratio < 0.6:
-            class_weights = (1.0 / (class_counts + 1e-8)).clamp(max=10)  # Prevent extreme weights
-            class_weights = class_weights / class_weights.sum()  # Normalize
-            print(f"Applying class weights: {class_weights}")
+        # 🔹 Filter non-zero class counts to avoid min/max errors
+        nonzero_class_counts = class_counts[class_counts > 0]
+    
+        if len(nonzero_class_counts) > 0:
+            min_count = nonzero_class_counts.min()  # ✅ Avoid min() on empty tensor
+            max_count = nonzero_class_counts.max()
+    
+            # 🔹 Compute class ratio
+            class_ratio = min_count / (max_count + 1e-8)
+    
+            # 🔹 Assign class weights if class ratio is below 0.6
+            if class_ratio < 0.6:
+                class_weights = (1.0 / (nonzero_class_counts + 1e-8)).clamp(max=10)
+                class_weights = class_weights / class_weights.sum()  # ✅ Normalize only seen classes
+                print(f"Applying class weights for Episode {self._cur_task}: {class_weights}")
+            else:
+                class_weights = None
         else:
-            class_weights = None  # No weighting needed
+            class_weights = None  # No classes seen yet, no weights needed
     
         for _, epoch in enumerate(prog_bar):
             self._network.backbone.train()
@@ -568,12 +668,12 @@ class Learner(BaseLearner):
     
                 # 🔹 Forward Pass for Main Model
                 output = self._network(inputs, adapter_id=self._cur_task, train=True)
-                logits = output["logits"][:, :self._total_classes]
-                logits[:, :self._known_classes] = float('-inf')
+                logits = output["logits"][:, :self._known_classes]  # ✅ Use only known classes for this episode
     
                 # 🔹 Compute Classification Loss
                 if class_weights is not None:
-                    ce_loss = F.cross_entropy(logits, targets.long(), weight=class_weights, reduction='none')
+                    valid_weights = class_weights[:logits.shape[1]]  # ✅ Take only available class weights
+                    ce_loss = F.cross_entropy(logits, targets.long(), weight=valid_weights, reduction='none')
                 else:
                     ce_loss = F.cross_entropy(logits, targets.long(), reduction='none')
     
@@ -608,7 +708,7 @@ class Learner(BaseLearner):
                 scheduler.step()
             train_acc = np.around(tensor2numpy(correct) * 100 / total, decimals=2)
     
-            # Logging progress
+            # 🔹 Logging progress
             info = "Task {}, Epoch {}/{} => Loss {:.3f}, Train_accy {:.2f}".format(
                 self._cur_task,
                 epoch + 1,
