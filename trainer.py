@@ -270,7 +270,7 @@ def _train(args):
                 np_acctable = np.zeros([task + 1, task + 1])
                 for idxx, line in enumerate(imb_matrices[metric]):
                     idxy = len(line)
-                    np_acctable[idxx, :idxy] = np.array(line)
+                    np_acctable[idxx, :idxy] = np.array(list(line))
                 np_acctable = np_acctable.T
                 print(f"\n### {metric.upper()} Matrix (CNN) ###")
                 print(np_acctable)
