@@ -148,7 +148,7 @@ class iCIFAR224(iData):
         )
         
 class iCIFAR224_imbalanced(iData):
-    def __init__(self, args, imbalance_ratio=0.5, imbalance_classes=None):
+    def __init__(self, args, imbalance_ratio=0.25, imbalance_classes=None):
         super().__init__()
         self.args = args
         self.use_path = False
@@ -309,7 +309,7 @@ class iImageNetR(iData):
 
 
 class iImageNetR_imbalanced(iData):
-    def __init__(self, args, imbalance_ratio=0.5, imbalance_classes=None):
+    def __init__(self, args, imbalance_ratio=0.25, imbalance_classes=None):
         super().__init__()
         self.args = args
         self.use_path = True
@@ -423,7 +423,7 @@ class CUB(iData):
         self.test_data, self.test_targets = split_images_labels(test_dset.imgs)
 
 class CUB_imbalanced(iData):
-    def __init__(self, args, imbalance_ratio=0.5, imbalance_classes=None):
+    def __init__(self, args, imbalance_ratio=0.25, imbalance_classes=None):
         super().__init__()
         self.args = args
         self.use_path = True
@@ -517,7 +517,7 @@ class objectnet(iData):
         self.test_data, self.test_targets = split_images_labels(test_dset.imgs)
 
 class objectnet_imbalanced(iData):
-    def __init__(self, args, imbalance_ratio=0.5, imbalance_classes=None):
+    def __init__(self, args, imbalance_ratio=0.25, imbalance_classes=None):
         super().__init__()
         self.args = args
         self.use_path = True
@@ -611,7 +611,7 @@ class omnibenchmark(iData):
         self.test_data, self.test_targets = split_images_labels(test_dset.imgs)
 
 class omnibenchmark_imbalanced(iData):
-    def __init__(self, args, imbalance_ratio=0.5, imbalance_classes=None):
+    def __init__(self, args, imbalance_ratio=0.25, imbalance_classes=None):
         super().__init__()
         self.args = args
         self.use_path = True
@@ -707,7 +707,7 @@ class vtab(iData):
 
 
 class vtab_imbalanced(iData):
-    def __init__(self, args, imbalance_ratio=0.5, imbalance_classes=None):
+    def __init__(self, args, imbalance_ratio=0.25, imbalance_classes=None):
         super().__init__()
         self.args = args
         self.use_path = True
