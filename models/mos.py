@@ -17,14 +17,6 @@ import time
 num_workers = 8
 from collections import defaultdict
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from collections import defaultdict
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from collections import defaultdict
 
 class MemoryTaskSelector(nn.Module):
     def __init__(self, feature_dim, num_tasks, hidden_dim=128, device="cuda"):
@@ -54,11 +46,20 @@ class MemoryTaskSelector(nn.Module):
         self.memory_usage = torch.zeros(num_tasks, device=device)  # Track task selection frequency
 
     def get_task_bias(self):
-        """
-        Compute logit adjustments for tasks based on their usage.
-        """
-        adjusted_bias = self.task_bias - (self.memory_usage / (self.memory_usage.max() + 1e-6))
-        return adjusted_bias
+        """Reduces bias for frequent tasks by adjusting logits."""
+        bias = torch.log(1 + self.memory_usage / (self.memory_usage.max() + 1e-6))  # Log-based adjustment
+        return bias
+
+    def memory_contrastive_loss(self, features, task_id):
+        """Encourages memory embeddings to remain distinct per task."""
+        anchor = self.memory[task_id]
+        positives = features  # Features from the same task
+        negatives = self.memory[torch.arange(self.num_tasks) != task_id]  # Other tasks
+
+        pos_loss = F.mse_loss(positives, anchor.expand_as(positives))  # Pull closer
+        neg_loss = -F.mse_loss(negatives, anchor.expand_as(negatives)).mean()  # Push away
+
+        return pos_loss + neg_loss
 
     def forward(self, features, task_id=None):
         """
@@ -89,15 +90,40 @@ class MemoryTaskSelector(nn.Module):
 
         # 🔹 Memory Loss (Adaptive Regularization)
         if task_id is not None:
-            task_weights = 1 / (self.memory_usage + 1e-6)  # Inverse class frequency
-            memory_loss = (task_weights[task_id] * F.mse_loss(features, self.memory[task_id])).mean()
-            
+            memory_loss = self.memory_contrastive_loss(features, task_id)
+
             # 🔹 Update Memory Usage Counter
             self.memory_usage[task_id] += 1
+
+            # 🔹 Force Rare Task Memory Updates
+            if self.memory_usage[task_id] < 0.1 * self.memory_usage.max():
+                self.memory[task_id].data = 0.9 * self.memory[task_id].data + 0.1 * features.mean(0)
 
             return task_probs, memory_loss
         else:
             return task_probs
+
+    def log_adapter_usage(self, adapter_idx):
+        """
+        Logs how often each adapter is selected.
+        """
+        if isinstance(adapter_idx, int):
+            adapter_idx = torch.tensor([adapter_idx], device=self.device)
+        elif not isinstance(adapter_idx, torch.Tensor):
+            adapter_idx = torch.tensor(adapter_idx, device=self.device)
+
+        unique, counts = torch.unique(adapter_idx, return_counts=True)
+        for idx, count in zip(unique.tolist(), counts.tolist()):
+            self.adapter_counts[idx] += count
+
+    def print_adapter_usage(self):
+        """
+        Prints adapter selection frequencies.
+        """
+        print("\n🔹 Adapter Selection Counts:")
+        for adapter, count in sorted(self.adapter_counts.items()):
+            print(f"Adapter {adapter}: {count} times selected")
+
 
     def log_adapter_usage(self, adapter_idx):
         """
