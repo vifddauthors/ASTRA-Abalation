@@ -678,10 +678,11 @@ class Learner(BaseLearner):
                 output = self._network(inputs, adapter_id=self._cur_task, train=True)
                 logits = output["logits"][:, :max_seen_class + 1]  # ✅ Use only known classes for this episode
     
-                # 🔹 Compute Classification Loss
+                # 🔹 Ensure `class_weights` matches `logits.shape[1]`
                 if class_weights is not None:
-                    valid_weights = class_weights[:logits.shape[1]]  # ✅ Take only available class weights
-                    ce_loss = F.cross_entropy(logits, targets.long(), weight=valid_weights, reduction='none')
+                    padded_weights = torch.ones(logits.shape[1], device=self._device)  # Default weights of 1
+                    padded_weights[:len(class_weights)] = class_weights  # Assign computed weights
+                    ce_loss = F.cross_entropy(logits, targets.long(), weight=padded_weights, reduction='none')
                 else:
                     ce_loss = F.cross_entropy(logits, targets.long(), reduction='none')
     
@@ -727,7 +728,6 @@ class Learner(BaseLearner):
             prog_bar.set_description(info)
     
         logging.info(info)
-
 
     @torch.no_grad()
     def _compute_mean(self, model):
