@@ -25,83 +25,59 @@ class MemoryTaskSelector(nn.Module):
         self.feature_dim = feature_dim
         self.device = device
 
-        # 🔹 Task Memory (Learnable Representations)
         self.memory = nn.Parameter(torch.randn(num_tasks, feature_dim).to(device))  
-
-        # 🔹 Attention-Based Task Selector
         self.attention = nn.MultiheadAttention(embed_dim=feature_dim, num_heads=4, batch_first=True).to(device)
-
-        # 🔹 Task Selection Network
         self.fc = nn.Sequential(
             nn.Linear(feature_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, num_tasks)
         ).to(device)
 
-        # 🔹 Task Bias for Imbalance Handling
-        self.task_bias = nn.Parameter(torch.zeros(num_tasks).to(device))
-
-        # 🔹 Adapter Selection Logging
-        self.adapter_counts = defaultdict(int)
-        self.memory_usage = torch.zeros(num_tasks, device=device)  # Track task selection frequency
-
-    def get_task_bias(self):
-        """Reduces bias for frequent tasks by adjusting logits."""
-        bias = torch.log(1 + self.memory_usage / (self.memory_usage.max() + 1e-6))  # Log-based adjustment
-        return bias
+        self.memory_usage = torch.zeros(num_tasks, device=device)
 
     def memory_contrastive_loss(self, features, task_id):
-        """Encourages memory embeddings to remain distinct per task."""
         anchor = self.memory[task_id]
-        positives = features  # Features from the same task
-        negatives = self.memory[torch.arange(self.num_tasks) != task_id]  # Other tasks
+        positives = features
+        negatives = self.memory[torch.arange(self.num_tasks) != task_id]
 
-        pos_loss = F.mse_loss(positives, anchor.expand_as(positives))  # Pull closer
-        neg_loss = -F.mse_loss(negatives, anchor.expand_as(negatives)).mean()  # Push away
+        temperature = 0.1  
+        pos_sim = F.cosine_similarity(positives, anchor.expand_as(positives), dim=-1)  
+        neg_sim = F.cosine_similarity(negatives, anchor.expand_as(negatives), dim=-1)
 
-        return pos_loss + neg_loss
+        pos_loss = -torch.log(torch.exp(pos_sim / temperature) / (torch.exp(pos_sim / temperature) + torch.exp(neg_sim / temperature).sum()))
+        neg_loss = -torch.log(1 - neg_sim.mean())
+
+        diversity_loss = -torch.mean(F.cosine_similarity(self.memory.unsqueeze(0), self.memory.unsqueeze(1), dim=-1))
+        return pos_loss + neg_loss + 0.01 * diversity_loss  # Regularization
 
     def forward(self, features, task_id=None):
-        """
-        Args:
-            features (torch.Tensor): Input features [B, feature_dim]
-            task_id (int, optional): Used for memory loss regularization.
-        
-        Returns:
-            task_probs (torch.Tensor): Task selection probabilities [B, num_tasks]
-            memory_loss (torch.Tensor, optional): Regularization loss for memory stability.
-        """
         features = features.to(self.device)
         self.memory = self.memory.to(self.device)
 
-        # 🔹 Attention: Memory as Key/Value, Features as Query
         attended_features, _ = self.attention(
-            features.unsqueeze(1),  # Query
-            self.memory.unsqueeze(0).expand(features.shape[0], -1, -1),  # Key
-            self.memory.unsqueeze(0).expand(features.shape[0], -1, -1)   # Value
+            features.unsqueeze(1),
+            self.memory.unsqueeze(0).expand(features.shape[0], -1, -1),
+            self.memory.unsqueeze(0).expand(features.shape[0], -1, -1)
         )
 
-        # 🔹 Compute Task Logits with Bias Adjustment
-        task_logits = self.fc(attended_features.squeeze(1))  # Shape: [B, num_tasks]
-        task_logits -= self.get_task_bias()  # 🔹 Balance frequent vs rare tasks
+        task_logits = self.fc(attended_features.squeeze(1))
 
-        # 🔹 Task Probability Prediction (with Gumbel-Softmax)
-        task_probs = F.gumbel_softmax(task_logits, tau=0.5, hard=False)  
+        temperature = torch.exp(-self.memory_usage / (self.memory_usage.max() + 1e-6))
+        task_logits /= temperature  
 
-        # 🔹 Memory Loss (Adaptive Regularization)
+        task_probs = F.gumbel_softmax(task_logits, tau=0.5, hard=False)
+
         if task_id is not None:
             memory_loss = self.memory_contrastive_loss(features, task_id)
-
-            # 🔹 Update Memory Usage Counter
             self.memory_usage[task_id] += 1
 
-            # 🔹 Force Rare Task Memory Updates
-            if self.memory_usage[task_id] < 0.1 * self.memory_usage.max():
-                self.memory[task_id].data = 0.9 * self.memory[task_id].data + 0.1 * features.mean(0)
+            lr = 0.1 / (1 + self.memory_usage[task_id])
+            self.memory[task_id].data = (1 - lr) * self.memory[task_id].data + lr * features.mean(0)
 
             return task_probs, memory_loss
         else:
             return task_probs
+
 
     def log_adapter_usage(self, adapter_idx):
         """
