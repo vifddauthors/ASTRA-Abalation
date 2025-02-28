@@ -11,6 +11,7 @@
     "backbone_type": "vit_base_patch16_224_in21k_mos",
     "device": ["0"],
     "seed": [1993],
+    "imb_metrics":true,
     
     "tuned_epoch": 20,
     "init_lr": 0.05,
@@ -24,7 +25,7 @@
     "init_lr_decay": 0.1,
     "reg": 0.1,
     "adapter_momentum": 0.1,
-    "ensemble": true,
+    "ensemble": false,
 
     "crct_epochs": 30,
     "ca_lr": 0.005,
