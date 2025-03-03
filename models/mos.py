@@ -1220,7 +1220,7 @@ class Learner(BaseLearner):
                 for i in range(inputs.shape[0]):  # Iterate over the batch
                     if self.ensemble:
                         sample_logits = []
-                        for j in range(3):  # Top-3 adapters
+                        for j in range(3):  # Top-3 adapters ensemble for abalation
                             if int(adapter_indices[i, j].item()) < 0 or int(adapter_indices[i, j].item()) > self._cur_task:
                                 continue
                             adapter_id = int(adapter_indices[i, j].item())
@@ -1238,7 +1238,7 @@ class Learner(BaseLearner):
                         logits_stack = torch.stack(sample_logits, dim=0)  # Shape: [num_valid_adapters, 1, num_classes]
                         averaged_logits = logits_stack.mean(dim=0)  # Simple mean across adapters
                         logits_list.append(averaged_logits)
-                    else:
+                    else: #single pass Top 1 adapter
                         if int(adapter_indices[i, 0].item()) < 0 or int(adapter_indices[i, 0].item()) > self._cur_task:
                             adapter_id=0
                         else:
