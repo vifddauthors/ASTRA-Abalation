@@ -11,7 +11,7 @@
     "backbone_type": "vit_base_patch16_224_mos",
     "device": ["0"],
     "seed": [1993],
-    
+    "imb_metrics": false,
     "tuned_epoch": 20,
     "init_lr": 0.01,
     "batch_size": 32,
