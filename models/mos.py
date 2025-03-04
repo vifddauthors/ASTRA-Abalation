@@ -39,7 +39,7 @@ class MemoryTaskSelector(nn.Module):
         # 🔹 Adapter Selection Logging (For Inference)
         self.adapter_counts = defaultdict(int)  # Counts how often each adapter is selected
 
-    def forward(self, features):
+    def forward(self, features,task_id=None):
         """
         Args:
             features (torch.Tensor): Input feature representation [B, feature_dim]
