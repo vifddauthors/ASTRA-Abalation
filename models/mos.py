@@ -720,7 +720,7 @@ class Learner(BaseLearner):
     
     #     logging.info(info)
 
-    # @torch.no_grad()
+    @torch.no_grad()
     def _compute_mean(self, model):
         model.eval()
         for class_idx in range(self._known_classes, self._total_classes):
