@@ -17,110 +17,10 @@ import time
 num_workers = 8
 from collections import defaultdict
 
-
-# class MemoryTaskSelector(nn.Module):
-#     def __init__(self, feature_dim, num_tasks, hidden_dim=128, device="cuda"):
-#         super().__init__()
-#         self.num_tasks = num_tasks
-#         self.feature_dim = feature_dim
-#         self.device = device
-
-#         self.memory = nn.Parameter(torch.randn(num_tasks, feature_dim).to(device))  
-#         self.attention = nn.MultiheadAttention(embed_dim=feature_dim, num_heads=4, batch_first=True).to(device)
-#         self.fc = nn.Sequential(
-#             nn.Linear(feature_dim, hidden_dim),
-#             nn.ReLU(),
-#             nn.Linear(hidden_dim, num_tasks)
-#         ).to(device)
-
-#         self.memory_usage = torch.zeros(num_tasks, device=device)
-
-#     def memory_contrastive_loss(self, features, task_id):
-#         anchor = self.memory[task_id]
-#         positives = features
-#         negatives = self.memory[torch.arange(self.num_tasks) != task_id]
-
-#         temperature = 0.1  
-#         pos_sim = F.cosine_similarity(positives, anchor.expand_as(positives), dim=-1)  
-#         neg_sim = F.cosine_similarity(negatives, anchor.expand_as(negatives), dim=-1)
-
-#         pos_loss = -torch.log(torch.exp(pos_sim / temperature) / (torch.exp(pos_sim / temperature) + torch.exp(neg_sim / temperature).sum()))
-#         neg_loss = -torch.log(1 - neg_sim.mean())
-
-#         diversity_loss = -torch.mean(F.cosine_similarity(self.memory.unsqueeze(0), self.memory.unsqueeze(1), dim=-1))
-#         return pos_loss + neg_loss + 0.01 * diversity_loss  # Regularization
-
-#     def forward(self, features, task_id=None):
-#         features = features.to(self.device)
-#         self.memory = self.memory.to(self.device)
-
-#         attended_features, _ = self.attention(
-#             features.unsqueeze(1),
-#             self.memory.unsqueeze(0).expand(features.shape[0], -1, -1),
-#             self.memory.unsqueeze(0).expand(features.shape[0], -1, -1)
-#         )
-
-#         task_logits = self.fc(attended_features.squeeze(1))
-
-#         temperature = torch.exp(-self.memory_usage / (self.memory_usage.max() + 1e-6))
-#         task_logits /= temperature  
-
-#         task_probs = F.gumbel_softmax(task_logits, tau=0.5, hard=False)
-
-#         if task_id is not None:
-#             memory_loss = self.memory_contrastive_loss(features, task_id)
-#             self.memory_usage[task_id] += 1
-
-#             lr = 0.1 / (1 + self.memory_usage[task_id])
-#             self.memory[task_id].data = (1 - lr) * self.memory[task_id].data + lr * features.mean(0)
-
-#             return task_probs, memory_loss
-#         else:
-#             return task_probs
-
-
-#     def log_adapter_usage(self, adapter_idx):
-#         """
-#         Logs how often each adapter is selected.
-#         """
-#         if isinstance(adapter_idx, int):
-#             adapter_idx = torch.tensor([adapter_idx], device=self.device)
-#         elif not isinstance(adapter_idx, torch.Tensor):
-#             adapter_idx = torch.tensor(adapter_idx, device=self.device)
-
-#         unique, counts = torch.unique(adapter_idx, return_counts=True)
-#         for idx, count in zip(unique.tolist(), counts.tolist()):
-#             self.adapter_counts[idx] += count
-
-#     def print_adapter_usage(self):
-#         """
-#         Prints adapter selection frequencies.
-#         """
-#         print("\n🔹 Adapter Selection Counts:")
-#         for adapter, count in sorted(self.adapter_counts.items()):
-#             print(f"Adapter {adapter}: {count} times selected")
-
-
-#     def log_adapter_usage(self, adapter_idx):
-#         """
-#         Logs how often each adapter is selected.
-#         """
-#         if isinstance(adapter_idx, int):
-#             adapter_idx = torch.tensor([adapter_idx], device=self.device)
-#         elif not isinstance(adapter_idx, torch.Tensor):
-#             adapter_idx = torch.tensor(adapter_idx, device=self.device)
-
-#         unique, counts = torch.unique(adapter_idx, return_counts=True)
-#         for idx, count in zip(unique.tolist(), counts.tolist()):
-#             self.adapter_counts[idx] += count
-
-#     def print_adapter_usage(self):
-#         """
-#         Prints adapter selection frequencies.
-#         """
-#         print("\n🔹 Adapter Selection Counts:")
-#         for adapter, count in sorted(self.adapter_counts.items()):
-#             print(f"Adapter {adapter}: {count} times selected")
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from collections import defaultdict
 
 class MemoryTaskSelector(nn.Module):
     def __init__(self, feature_dim, num_tasks, hidden_dim=128, device="cuda"):
@@ -129,13 +29,7 @@ class MemoryTaskSelector(nn.Module):
         self.feature_dim = feature_dim
         self.device = device  # Store device information
 
-        # 🔹 Task Memory (Fixed Memory for Each Task)
-        self.memory = nn.Parameter(torch.randn(num_tasks, feature_dim).to(device))  
-
-        # 🔹 Attention-Based Task Selector
-        self.attention = nn.MultiheadAttention(embed_dim=feature_dim, num_heads=4, batch_first=True).to(device)
-
-        # 🔹 Task Selection Network
+        # 🔹 Task Selection Network (No Memory or Attention Component)
         self.fc = nn.Sequential(
             nn.Linear(feature_dim, hidden_dim),
             nn.ReLU(),
@@ -145,102 +39,22 @@ class MemoryTaskSelector(nn.Module):
         # 🔹 Adapter Selection Logging (For Inference)
         self.adapter_counts = defaultdict(int)  # Counts how often each adapter is selected
 
-    def forward(self, features, task_id=None):
+    def forward(self, features):
         """
         Args:
             features (torch.Tensor): Input feature representation [B, feature_dim]
-            task_id (int, optional): If given, applies memory regularization.
         
         Returns:
             torch.Tensor: Task probabilities (shape [B, num_tasks])
-            torch.Tensor (optional): Memory loss for regularization.
         """
-        # 🔹 Move everything to the correct device
+        # 🔹 Move features to the correct device
         features = features.to(self.device)
-        self.memory = self.memory.to(self.device)  # Ensure memory is on the same device
-
-        # 🔹 Apply Attention: The memory vectors act as keys/values, and the features as queries
-        attended_features, _ = self.attention(
-            features.unsqueeze(1),  # Query
-            self.memory.unsqueeze(0).expand(features.shape[0], -1, -1),  # Key
-            self.memory.unsqueeze(0).expand(features.shape[0], -1, -1)   # Value
-        )
 
         # 🔹 Task Probability Prediction
-        task_logits = self.fc(attended_features.squeeze(1))  # Shape: [B, num_tasks]
-        task_probs = F.softmax(task_logits, dim=-1)  
+        task_logits = self.fc(features)  # Shape: [B, num_tasks]
+        task_probs = F.softmax(task_logits, dim=-1)
 
-        # 🔹 Memory Loss (Only in Training)
-        if task_id is not None:
-            memory_loss = F.mse_loss(features, self.memory[task_id].unsqueeze(0).expand_as(features))
-            return task_probs, memory_loss
-        else:
-            return task_probs  # Only return probabilities in inference
-
-    def log_adapter_usage(self, adapter_idx):
-        """
-        Logs how often each adapter is selected during inference.
-        """
-        if isinstance(adapter_idx, int):  # Convert single integer to a tensor
-            adapter_idx = torch.tensor([adapter_idx], device=self.device)
-        elif not isinstance(adapter_idx, torch.Tensor):
-            adapter_idx = torch.tensor(adapter_idx, device=self.device)
-
-        unique, counts = torch.unique(adapter_idx, return_counts=True)
-        for idx, count in zip(unique.tolist(), counts.tolist()):
-            self.adapter_counts[idx] += count
-
-    def print_adapter_usage(self):
-        """
-        Prints the adapter selection frequencies at the end of inference.
-        """
-        print("\n🔹 Adapter Selection Counts:")
-        for adapter, count in sorted(self.adapter_counts.items()):
-            print(f"Adapter {adapter}: {count} times selected")
-
-# class MemoryTaskSelector(nn.Module):
-#     def __init__(self, feature_dim, num_tasks, hidden_dim=128, device="cuda"):
-#         super().__init__()
-#         self.num_tasks = num_tasks
-#         self.feature_dim = feature_dim
-#         self.device = device  # Store device information
-
-#         # 🔹 Move memory to the correct device
-#         self.memory = nn.Parameter(torch.randn(num_tasks, feature_dim).to(device))  # Move memory to device
-
-#         # 🔹 Task Selector Network (MLP)
-#         self.fc = nn.Sequential(
-#             nn.Linear(feature_dim, hidden_dim),
-#             nn.ReLU(),
-#             nn.Linear(hidden_dim, num_tasks)
-#         ).to(device)  # Move model to the correct device
-
-#     def forward(self, features, task_id=None):
-#         """
-#         Args:
-#             features (torch.Tensor): Input feature representation [B, feature_dim]
-#             task_id (int, optional): If given, uses memory regularization for this task
-        
-#         Returns:
-#             torch.Tensor: Task probabilities (shape [B, num_tasks])
-#             torch.Tensor (optional): Memory loss for regularization
-#         """
-#         # 🔹 Ensure `features` is on the correct device
-#         features = features.to(self.device)
-    
-#         # 🔹 Predict task probabilities
-#         task_logits = self.fc(features)  # Shape: [B, num_tasks]
-#         task_probs = F.softmax(task_logits, dim=-1)  
-    
-#         # 🔹 Memory Regularization (Only in Training)
-#         if task_id is not None:
-#             # 🔹 Expand memory vector to match batch size
-#             memory_loss = F.mse_loss(features, self.memory[task_id].unsqueeze(0).expand_as(features).to(self.device))
-#             return task_probs, memory_loss
-#         else:
-#             return task_probs  # Only return probabilities in inference
-
-
+        return task_probs
 
 
 
