@@ -53,8 +53,10 @@ class MemoryTaskSelector(nn.Module):
         # 🔹 Task Probability Prediction
         task_logits = self.fc(features)  # Shape: [B, num_tasks]
         task_probs = F.softmax(task_logits, dim=-1)
-
-        return task_probs,0
+        if task_id is not None:
+            return task_probs,0
+        else:
+            return task_probs
 
 
 
