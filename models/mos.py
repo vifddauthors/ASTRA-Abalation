@@ -54,7 +54,7 @@ class MemoryTaskSelector(nn.Module):
         task_logits = self.fc(features)  # Shape: [B, num_tasks]
         task_probs = F.softmax(task_logits, dim=-1)
 
-        return task_probs
+        return task_probs,0
 
 
 
