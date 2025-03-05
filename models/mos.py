@@ -28,6 +28,9 @@ class MemoryTaskSelector(nn.Module):
         # 🔹 Task Memory (Fixed Memory for Each Task)
         self.memory = nn.Parameter(torch.randn(num_tasks, feature_dim).to(device))  
 
+        # 🔹 Attention-Based Task Selector
+        self.attention = nn.MultiheadAttention(embed_dim=feature_dim, num_heads=4, batch_first=True).to(device)
+
         # 🔹 Task Selection Network
         self.fc = nn.Sequential(
             nn.Linear(feature_dim, hidden_dim),
@@ -52,8 +55,15 @@ class MemoryTaskSelector(nn.Module):
         features = features.to(self.device)
         self.memory = self.memory.to(self.device)  # Ensure memory is on the same device
 
+        # 🔹 Apply Attention: The memory vectors act as keys/values, and the features as queries
+        attended_features, _ = self.attention(
+            features.unsqueeze(1),  # Query
+            self.memory.unsqueeze(0).expand(features.shape[0], -1, -1),  # Key
+            self.memory.unsqueeze(0).expand(features.shape[0], -1, -1)   # Value
+        )
+
         # 🔹 Task Probability Prediction
-        task_logits = self.fc(features)  # Shape: [B, num_tasks]
+        task_logits = self.fc(attended_features.squeeze(1))  # Shape: [B, num_tasks]
         task_probs = F.softmax(task_logits, dim=-1)  
 
         # 🔹 Memory Loss (Only in Training)
