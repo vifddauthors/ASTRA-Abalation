@@ -18,11 +18,6 @@ num_workers = 8
 from collections import defaultdict
 
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from collections import defaultdict
-
 class MemoryTaskSelector(nn.Module):
     def __init__(self, feature_dim, num_tasks, hidden_dim=128, device="cuda"):
         super().__init__()
