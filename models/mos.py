@@ -17,6 +17,7 @@ import time
 num_workers = 8
 from collections import defaultdict
 
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -29,7 +30,10 @@ class MemoryTaskSelector(nn.Module):
         self.feature_dim = feature_dim
         self.device = device  # Store device information
 
-        # 🔹 Task Selection Network (No Memory or Attention Component)
+        # 🔹 Task Memory (Fixed Memory for Each Task)
+        self.memory = nn.Parameter(torch.randn(num_tasks, feature_dim).to(device))  
+
+        # 🔹 Task Selection Network
         self.fc = nn.Sequential(
             nn.Linear(feature_dim, hidden_dim),
             nn.ReLU(),
@@ -39,24 +43,31 @@ class MemoryTaskSelector(nn.Module):
         # 🔹 Adapter Selection Logging (For Inference)
         self.adapter_counts = defaultdict(int)  # Counts how often each adapter is selected
 
-    def forward(self, features,task_id=None):
+    def forward(self, features, task_id=None):
         """
         Args:
             features (torch.Tensor): Input feature representation [B, feature_dim]
+            task_id (int, optional): If given, applies memory regularization.
         
         Returns:
             torch.Tensor: Task probabilities (shape [B, num_tasks])
+            torch.Tensor (optional): Memory loss for regularization.
         """
-        # 🔹 Move features to the correct device
+        # 🔹 Move everything to the correct device
         features = features.to(self.device)
+        self.memory = self.memory.to(self.device)  # Ensure memory is on the same device
 
         # 🔹 Task Probability Prediction
         task_logits = self.fc(features)  # Shape: [B, num_tasks]
-        task_probs = F.softmax(task_logits, dim=-1)
+        task_probs = F.softmax(task_logits, dim=-1)  
+
+        # 🔹 Memory Loss (Only in Training)
         if task_id is not None:
-            return task_probs,0
+            memory_loss = F.mse_loss(features, self.memory[task_id].unsqueeze(0).expand_as(features))
+            return task_probs, memory_loss
         else:
-            return task_probs
+            return task_probs  # Only return probabilities in inference
+
 
 
 
